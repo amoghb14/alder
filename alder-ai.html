@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alder.AI — Autonomous Investment Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --black:#0a0a08;
+  --cream:#f5f0e8;
+  --cream-light:#faf7f2;
+  --cream-mid:#ede5d4;
+  --gold:#c9a84c;
+  --gold-light:#e2c97e;
+  --gold-dark:#9a7a2e;
+  --gold-muted:#f0e4bf;
+  --surface:#111109;
+  --surface2:#1a1a14;
+  --surface3:#22221a;
+  --border:#2a2a1f;
+  --border-gold:rgba(201,168,76,0.25);
+  --text-primary:#f5f0e8;
+  --text-secondary:rgba(245,240,232,0.55);
+  --text-muted:rgba(245,240,232,0.3);
+  --red:#e05252;
+  --green:#4caf7d;
+  --font-display:'Cormorant Garamond',serif;
+  --font-sans:'Syne',sans-serif;
+  --font-mono:'DM Mono',monospace;
+}
+html,body{height:100%;background:var(--black);color:var(--text-primary);font-family:var(--font-sans)}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:var(--font-sans)}
+input,select,textarea{font-family:var(--font-mono)}
+
+/* LAYOUT */
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10}
+.main{flex:1;overflow-y:auto;background:var(--black);position:relative}
+.page{min-height:100vh;padding:40px 48px;display:none}
+.page.active{display:block}
+
+/* SIDEBAR */
+.logo-wrap{padding:28px 24px 20px;border-bottom:1px solid var(--border)}
+.logo{font-family:var(--font-display);font-size:26px;font-weight:600;letter-spacing:0.02em;color:var(--gold)}
+.logo span{color:var(--cream);font-weight:300}
+.logo-sub{font-size:9px;font-family:var(--font-mono);color:var(--text-muted);letter-spacing:0.15em;text-transform:uppercase;margin-top:3px}
+.nav{flex:1;padding:16px 0}
+.nav-section{padding:0 16px 8px;font-size:9px;font-family:var(--font-mono);letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);margin-top:12px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;font-size:12px;font-weight:500;letter-spacing:0.04em;color:var(--text-secondary);cursor:pointer;transition:all .15s;border-left:2px solid transparent;position:relative}
+.nav-item:hover{color:var(--text-primary);background:rgba(201,168,76,0.05)}
+.nav-item.active{color:var(--gold);border-left-color:var(--gold);background:rgba(201,168,76,0.07)}
+.nav-item .icon{width:14px;height:14px;opacity:0.7}
+.nav-item.active .icon{opacity:1}
+.nav-badge{margin-left:auto;background:var(--gold);color:var(--black);font-size:9px;font-family:var(--font-mono);padding:1px 5px;border-radius:3px;font-weight:500}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border)}
+.sidebar-user{display:flex;align-items:center;gap:10px}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--gold-dark),var(--gold));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--black);font-family:var(--font-mono)}
+.user-info{flex:1}
+.user-name{font-size:11px;font-weight:600;color:var(--text-primary)}
+.user-role{font-size:9px;font-family:var(--font-mono);color:var(--text-muted);letter-spacing:0.08em}
+
+/* TYPOGRAPHY */
+.page-header{margin-bottom:40px}
+.page-title{font-family:var(--font-display);font-size:36px;font-weight:400;letter-spacing:0.01em;color:var(--cream)}
+.page-title em{font-style:italic;color:var(--gold)}
+.page-subtitle{font-size:11px;font-family:var(--font-mono);color:var(--text-muted);letter-spacing:0.12em;text-transform:uppercase;margin-top:4px}
+.section-title{font-size:10px;font-family:var(--font-mono);letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border-gold)}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:20px}
+.card-gold{border-color:var(--border-gold);background:linear-gradient(135deg,var(--surface) 0%,rgba(201,168,76,0.04) 100%)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+
+/* METRIC CARDS */
+.metric{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:16px 20px}
+.metric-label{font-size:9px;font-family:var(--font-mono);letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.metric-value{font-family:var(--font-display);font-size:28px;font-weight:300;color:var(--cream);line-height:1}
+.metric-value.gold{color:var(--gold)}
+.metric-value.green{color:var(--green)}
+.metric-value.red{color:var(--red)}
+.metric-delta{font-size:10px;font-family:var(--font-mono);margin-top:4px}
+.metric-delta.up{color:var(--green)}
+.metric-delta.down{color:var(--red)}
+
+/* TAGS & BADGES */
+.badge{display:inline-block;font-size:9px;font-family:var(--font-mono);letter-spacing:0.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px}
+.badge-gold{background:rgba(201,168,76,0.15);color:var(--gold);border:1px solid rgba(201,168,76,0.3)}
+.badge-green{background:rgba(76,175,125,0.12);color:var(--green);border:1px solid rgba(76,175,125,0.25)}
+.badge-red{background:rgba(224,82,82,0.12);color:var(--red);border:1px solid rgba(224,82,82,0.25)}
+.badge-gray{background:rgba(245,240,232,0.07);color:var(--text-secondary);border:1px solid var(--border)}
+.badge-active{background:rgba(201,168,76,0.2);color:var(--gold-light);border:1px solid var(--gold-dark)}
+
+/* TABLES */
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{font-size:9px;font-family:var(--font-mono);letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
+.data-table td{font-size:12px;padding:10px 12px;border-bottom:1px solid rgba(42,42,31,0.5);color:var(--text-secondary);font-family:var(--font-mono)}
+.data-table tr:hover td{background:rgba(201,168,76,0.03);color:var(--text-primary)}
+.data-table td.primary{color:var(--text-primary);font-weight:400}
+.data-table td.gold{color:var(--gold)}
+
+/* AGENT CARDS */
+.agent-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;position:relative;overflow:hidden;transition:border-color .2s}
+.agent-card:hover{border-color:var(--border-gold)}
+.agent-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--agent-color,var(--gold))}
+.agent-status{display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;box-shadow:0 0 0 0 rgba(76,175,125,0.4)}
+.pulse.idle{background:var(--gold);animation:none}
+.pulse.warn{background:var(--red);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(76,175,125,0.4)}50%{box-shadow:0 0 0 6px rgba(76,175,125,0)}}
+.agent-name{font-family:var(--font-display);font-size:18px;font-weight:500;color:var(--cream);margin-bottom:4px}
+.agent-role{font-size:9px;font-family:var(--font-mono);letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted)}
+.agent-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}
+.agent-metric{background:var(--surface2);border-radius:4px;padding:8px 10px}
+.agent-metric-label{font-size:8px;font-family:var(--font-mono);letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:2px}
+.agent-metric-val{font-size:14px;font-family:var(--font-display);color:var(--cream);font-weight:400}
+.agent-activity{font-size:10px;font-family:var(--font-mono);color:var(--text-muted);line-height:1.6;margin-top:8px;border-top:1px solid var(--border);padding-top:12px}
+.agent-activity span{color:var(--gold)}
+
+/* THESIS CARDS */
+.thesis{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:20px;margin-bottom:12px}
+.thesis-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.thesis-ticker{font-family:var(--font-mono);font-size:16px;font-weight:500;color:var(--gold)}
+.thesis-name{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.thesis-conf{font-family:var(--font-display);font-size:28px;font-weight:300;color:var(--green)}
+.thesis-conf.low{color:var(--red)}
+.thesis-conf.mid{color:var(--gold)}
+.thesis-body{font-size:12px;color:var(--text-secondary);line-height:1.65;margin-bottom:12px;font-family:var(--font-mono)}
+.thesis-signals{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.signal-tag{font-size:9px;font-family:var(--font-mono);padding:2px 8px;border-radius:3px;background:rgba(201,168,76,0.08);color:var(--text-secondary);border:1px solid var(--border)}
+.debate-section{background:var(--surface2);border-radius:4px;padding:12px;margin-top:12px;border-left:2px solid var(--border-gold)}
+.debate-label{font-size:9px;font-family:var(--font-mono);letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.debate-text{font-size:11px;font-family:var(--font-mono);color:var(--text-secondary);line-height:1.6}
+
+/* PROGRESS BARS */
+.progress-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;background:var(--gold);border-radius:2px;transition:width .4s}
+.progress-fill.green{background:var(--green)}
+.progress-fill.red{background:var(--red)}
+
+/* RISK BARS */
+.risk-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(42,42,31,0.5)}
+.risk-label{font-size:10px;font-family:var(--font-mono);color:var(--text-secondary);width:120px;flex-shrink:0}
+.risk-bar-wrap{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.risk-val{font-size:10px;font-family:var(--font-mono);width:60px;text-align:right;color:var(--text-primary)}
+
+/* LOG */
+.log-entry{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid rgba(42,42,31,0.4)}
+.log-time{font-size:9px;font-family:var(--font-mono);color:var(--text-muted);width:80px;flex-shrink:0;padding-top:1px}
+.log-content{flex:1;font-size:11px;font-family:var(--font-mono);color:var(--text-secondary);line-height:1.5}
+.log-content strong{color:var(--gold);font-weight:400}
+.log-type{font-size:8px;font-family:var(--font-mono);padding:1px 6px;border-radius:2px;margin-left:6px;vertical-align:middle}
+.log-type.alert{background:rgba(224,82,82,0.15);color:var(--red)}
+.log-type.info{background:rgba(201,168,76,0.1);color:var(--gold)}
+.log-type.trade{background:rgba(76,175,125,0.1);color:var(--green)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:4px;font-size:11px;font-weight:500;letter-spacing:0.05em;font-family:var(--font-sans);border:1px solid;transition:all .15s;cursor:pointer}
+.btn-gold{background:var(--gold);color:var(--black);border-color:var(--gold)}
+.btn-gold:hover{background:var(--gold-light)}
+.btn-outline{background:transparent;color:var(--text-secondary);border-color:var(--border)}
+.btn-outline:hover{border-color:var(--gold);color:var(--gold)}
+.btn-sm{padding:5px 12px;font-size:10px}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* CHART WRAPPER */
+.chart-wrap{position:relative;width:100%}
+
+/* STATUS BAR */
+.status-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--border);font-size:9px;font-family:var(--font-mono);color:var(--text-muted);letter-spacing:0.06em}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:5px}
+.status-items{display:flex;gap:20px}
+.status-time{color:var(--text-secondary)}
+
+/* THESIS DEBATE TOGGLE */
+.toggle-row{display:flex;gap:8px;margin-bottom:20px}
+.toggle-btn{padding:5px 14px;border-radius:3px;font-size:10px;font-family:var(--font-mono);letter-spacing:0.05em;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;transition:all .15s}
+.toggle-btn.active{background:rgba(201,168,76,0.12);color:var(--gold);border-color:var(--border-gold)}
+
+/* ORDERS */
+.order-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(42,42,31,0.5)}
+.order-dir{font-size:10px;font-family:var(--font-mono);width:36px;text-align:center;padding:2px 6px;border-radius:3px;font-weight:500}
+.order-dir.buy{background:rgba(76,175,125,0.15);color:var(--green)}
+.order-dir.sell{background:rgba(224,82,82,0.15);color:var(--red)}
+.order-info{flex:1}
+.order-ticker{font-size:13px;font-family:var(--font-mono);color:var(--text-primary)}
+.order-detail{font-size:9px;font-family:var(--font-mono);color:var(--text-muted);margin-top:1px}
+.order-size{font-family:var(--font-display);font-size:18px;font-weight:300;text-align:right}
+.order-agent{font-size:9px;font-family:var(--font-mono);color:var(--gold);text-align:right;margin-top:2px}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.tab{padding:8px 20px;font-size:10px;font-family:var(--font-mono);letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.tab:hover{color:var(--text-primary)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* COMPLIANCE */
+.timeline-item{display:flex;gap:16px;padding:12px 0;border-bottom:1px solid rgba(42,42,31,0.4)}
+.timeline-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:3px;position:relative}
+.timeline-dot::after{content:'';position:absolute;top:8px;left:3px;width:1px;height:100%;background:var(--border)}
+.timeline-info{flex:1}
+.timeline-event{font-size:12px;color:var(--text-primary);margin-bottom:2px}
+.timeline-meta{font-size:9px;font-family:var(--font-mono);color:var(--text-muted)}
+
+/* SPARKLINE */
+.sparkline{display:flex;align-items:flex-end;gap:2px;height:30px}
+.spark-bar{flex:1;background:var(--gold);opacity:0.5;border-radius:1px;min-height:2px}
+.spark-bar.up{background:var(--green);opacity:0.7}
+.spark-bar.down{background:var(--red);opacity:0.6}
+
+/* LOADING ANIMATION */
+.thinking{display:flex;gap:3px;align-items:center}
+.thinking span{width:4px;height:4px;border-radius:50%;background:var(--gold);animation:blink 1.4s infinite}
+.thinking span:nth-child(2){animation-delay:.2s}
+.thinking span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:0.2}40%{opacity:1}}
+
+/* HEADER ROW */
+.flex-between{display:flex;align-items:center;justify-content:space-between}
+.flex-center{display:flex;align-items:center;gap:10px}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="logo-wrap">
+    <div class="logo">Alder<span>.AI</span></div>
+    <div class="logo-sub">Autonomous Investment Engine</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Operations</div>
+    <div class="nav-item active" onclick="navigate('dashboard')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item" onclick="navigate('agents')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="4" r="2.5" stroke="currentColor" stroke-width="1.2"/><circle cx="2.5" cy="10.5" r="1.8" stroke="currentColor" stroke-width="1.2"/><circle cx="11.5" cy="10.5" r="1.8" stroke="currentColor" stroke-width="1.2"/><line x1="7" y1="6.5" x2="2.5" y2="8.7" stroke="currentColor" stroke-width="1"/><line x1="7" y1="6.5" x2="11.5" y2="8.7" stroke="currentColor" stroke-width="1"/></svg>
+      Agent Swarm
+      <span class="nav-badge">5</span>
+    </div>
+    <div class="nav-item" onclick="navigate('research')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><path d="M2 2h10v10H2z" stroke="currentColor" stroke-width="1.2" rx="1"/><line x1="4" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1"/><line x1="4" y1="7.5" x2="8" y2="7.5" stroke="currentColor" stroke-width="1"/></svg>
+      Research Engine
+      <span class="nav-badge">12</span>
+    </div>
+    <div class="nav-item" onclick="navigate('strategy')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><polyline points="1,11 4,7 7,9 10,4 13,6" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+      Strategy Lab
+    </div>
+    <div class="nav-item" onclick="navigate('portfolio')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 1.5V7l4 2.5" stroke="currentColor" stroke-width="1.2"/></svg>
+      Portfolio
+    </div>
+    <div class="nav-section">Risk & Control</div>
+    <div class="nav-item" onclick="navigate('risk')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 12H1L7 1z" stroke="currentColor" stroke-width="1.2"/><line x1="7" y1="5" x2="7" y2="8" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="9.5" r="0.5" fill="currentColor"/></svg>
+      Risk Monitor
+    </div>
+    <div class="nav-item" onclick="navigate('orders')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="8.5" x2="7" y2="8.5" stroke="currentColor" stroke-width="1"/></svg>
+      Order Management
+    </div>
+    <div class="nav-section">Oversight</div>
+    <div class="nav-item" onclick="navigate('compliance')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><path d="M7 1L12 3v4c0 3-2.5 5.5-5 6C4.5 12.5 2 10 2 7V3L7 1z" stroke="currentColor" stroke-width="1.2"/><polyline points="4.5,7 6.5,9 9.5,5" stroke="currentColor" stroke-width="1.2"/></svg>
+      Compliance
+    </div>
+    <div class="nav-item" onclick="navigate('audit')">
+      <svg class="icon" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="currentColor" stroke-width="1"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="currentColor" stroke-width="1"/><line x1="4.5" y1="9.5" x2="7" y2="9.5" stroke="currentColor" stroke-width="1"/></svg>
+      Audit Log
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="avatar">JH</div>
+      <div class="user-info">
+        <div class="user-name">James Harlow</div>
+        <div class="user-role">Portfolio Manager</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR + MAIN CONTENT -->
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+  <div class="status-bar">
+    <div class="status-items">
+      <span><span class="status-dot"></span>All agents operational</span>
+      <span>NAV: <strong style="color:var(--gold)">$2.47B</strong></span>
+      <span>Daily P&L: <strong style="color:var(--green)">+$3.8M (+0.15%)</strong></span>
+      <span>Open Positions: <strong style="color:var(--text-primary)">147</strong></span>
+      <span>Active Theses: <strong style="color:var(--text-primary)">34</strong></span>
+    </div>
+    <div class="status-time" id="clock">NYSE: OPEN · 14:32:07 EST</div>
+  </div>
+  <div class="main" id="main-content">
+
+    <!-- ===== DASHBOARD PAGE ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header flex-between">
+        <div>
+          <div class="page-title">Command <em>Overview</em></div>
+          <div class="page-subtitle">Real-time fund operations · Thursday, April 30, 2026</div>
+        </div>
+        <div class="flex-center">
+          <div class="thinking"><span></span><span></span><span></span></div>
+          <span style="font-size:10px;font-family:var(--font-mono);color:var(--gold);margin-left:6px">Agents active</span>
+        </div>
+      </div>
+
+      <!-- KEY METRICS -->
+      <div class="grid-4" style="margin-bottom:32px">
+        <div class="metric">
+          <div class="metric-label">Fund NAV</div>
+          <div class="metric-value gold">$2.47B</div>
+          <div class="metric-delta up">▲ +$3.8M today</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">YTD Alpha</div>
+          <div class="metric-value green">+18.4%</div>
+          <div class="metric-delta up">▲ vs benchmark +9.2%</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Sharpe Ratio</div>
+          <div class="metric-value">2.31</div>
+          <div class="metric-delta up">▲ +0.14 30d rolling</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Max Drawdown</div>
+          <div class="metric-value red">-4.2%</div>
+          <div class="metric-delta">Within -8% limit</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:24px">
+        <!-- PnL CHART -->
+        <div class="card card-gold">
+          <div class="section-title">Portfolio Performance</div>
+          <div class="chart-wrap" style="height:200px">
+            <canvas id="pnlChart" role="img" aria-label="Portfolio cumulative PnL chart for 2026">Monthly cumulative performance vs benchmark.</canvas>
+          </div>
+        </div>
+        <!-- AGENT STATUS -->
+        <div class="card">
+          <div class="section-title">Agent Activity Feed</div>
+          <div id="activity-feed">
+            <div class="log-entry">
+              <div class="log-time">14:31:22</div>
+              <div class="log-content"><strong>ORCA</strong> identified regime shift signal in credit spreads <span class="log-type alert">alert</span></div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">14:29:47</div>
+              <div class="log-content"><strong>NEXUS</strong> submitted long thesis on TSMC — confidence 82% <span class="log-type info">thesis</span></div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">14:28:11</div>
+              <div class="log-content"><strong>VEGA</strong> executed 47,200 shares NVDA @ $891.40 <span class="log-type trade">trade</span></div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">14:26:03</div>
+              <div class="log-content"><strong>SENTINEL</strong> flagged concentration risk in tech sector (31.4% vs 28% limit) <span class="log-type alert">alert</span></div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">14:23:58</div>
+              <div class="log-content"><strong>ATLAS</strong> completed macro scan: Fed pivot probability revised to 68% <span class="log-type info">info</span></div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">14:21:30</div>
+              <div class="log-content"><strong>NEXUS</strong> initiated debate with ATLAS on EUR/USD carry trade thesis <span class="log-type info">info</span></div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">14:19:15</div>
+              <div class="log-content"><strong>VEGA</strong> closed 12,000 AMZN short — P&L +$284K <span class="log-type trade">trade</span></div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">14:17:02</div>
+              <div class="log-content"><strong>ORCA</strong> updated strategy model v3.7 — momentum factor weight +0.04 <span class="log-type info">info</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STRATEGY ALLOCATION + EXPOSURE -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Strategy Allocation</div>
+          <div class="chart-wrap" style="height:180px">
+            <canvas id="allocationChart" role="img" aria-label="Strategy allocation donut chart">Strategy allocation across fund types.</canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">Sector Exposure vs Limits</div>
+          <div class="risk-row">
+            <div class="risk-label">Technology</div>
+            <div class="risk-bar-wrap"><div class="progress-fill red" style="width:79%"></div></div>
+            <div class="risk-val" style="color:var(--red)">31.4%</div>
+          </div>
+          <div class="risk-row">
+            <div class="risk-label">Financials</div>
+            <div class="risk-bar-wrap"><div class="progress-fill" style="width:54%"></div></div>
+            <div class="risk-val">21.6%</div>
+          </div>
+          <div class="risk-row">
+            <div class="risk-label">Healthcare</div>
+            <div class="risk-bar-wrap"><div class="progress-fill green" style="width:37%"></div></div>
+            <div class="risk-val">14.8%</div>
+          </div>
+          <div class="risk-row">
+            <div class="risk-label">Energy</div>
+            <div class="risk-bar-wrap"><div class="progress-fill" style="width:28%"></div></div>
+            <div class="risk-val">11.2%</div>
+          </div>
+          <div class="risk-row">
+            <div class="risk-label">Consumer</div>
+            <div class="risk-bar-wrap"><div class="progress-fill green" style="width:21%"></div></div>
+            <div class="risk-val">8.4%</div>
+          </div>
+          <div class="risk-row">
+            <div class="risk-label">Other</div>
+            <div class="risk-bar-wrap"><div class="progress-fill green" style="width:14%"></div></div>
+            <div class="risk-val">5.6%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== AGENTS PAGE ===== -->
+    <div class="page" id="page-agents">
+      <div class="page-header">
+        <div class="page-title">Agent <em>Swarm</em></div>
+        <div class="page-subtitle">5 autonomous agents · real-time coordination</div>
+      </div>
+      <div class="grid-2" style="margin-bottom:24px;grid-template-columns:1fr 1fr 1fr">
+        <!-- NEXUS -->
+        <div class="agent-card" style="--agent-color:#c9a84c">
+          <div class="agent-status"><div class="pulse"></div><span style="font-size:9px;font-family:var(--font-mono);color:var(--green)">ACTIVE · ANALYZING</span></div>
+          <div class="agent-name">NEXUS</div>
+          <div class="agent-role">Fundamental Research Agent</div>
+          <div class="agent-metrics">
+            <div class="agent-metric"><div class="agent-metric-label">Active Theses</div><div class="agent-metric-val">14</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Avg Confidence</div><div class="agent-metric-val">74%</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Hit Rate</div><div class="agent-metric-val">68.2%</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Docs Processed</div><div class="agent-metric-val">2,847</div></div>
+          </div>
+          <div class="agent-activity">
+            <span>Current Task:</span> Analyzing TSMC Q1 2026 10-Q — comparing capex trajectory vs Taiwan foundry supply chain data. Cross-referencing with ASML order flow.
+          </div>
+        </div>
+        <!-- ATLAS -->
+        <div class="agent-card" style="--agent-color:#4caf7d">
+          <div class="agent-status"><div class="pulse"></div><span style="font-size:9px;font-family:var(--font-mono);color:var(--green)">ACTIVE · SCANNING</span></div>
+          <div class="agent-name">ATLAS</div>
+          <div class="agent-role">Macro & Cross-Asset Agent</div>
+          <div class="agent-metrics">
+            <div class="agent-metric"><div class="agent-metric-label">Regime Score</div><div class="agent-metric-val">Risk-On</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Macro Signals</div><div class="agent-metric-val">23</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Fed Pivot Prob</div><div class="agent-metric-val">68%</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Models Active</div><div class="agent-metric-val">7</div></div>
+          </div>
+          <div class="agent-activity">
+            <span>Current Task:</span> Modeling USD/CNH divergence from recent PBOC reserve operations. Correlating with EM equity flows and DXY breakout risk.
+          </div>
+        </div>
+        <!-- ORCA -->
+        <div class="agent-card" style="--agent-color:#6aa8d4">
+          <div class="agent-status"><div class="pulse"></div><span style="font-size:9px;font-family:var(--font-mono);color:var(--green)">ACTIVE · SIGNALING</span></div>
+          <div class="agent-name">ORCA</div>
+          <div class="agent-role">Statistical Arbitrage Agent</div>
+          <div class="agent-metrics">
+            <div class="agent-metric"><div class="agent-metric-label">Live Pairs</div><div class="agent-metric-val">38</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Z-Score Alerts</div><div class="agent-metric-val">4</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Avg Hold (hrs)</div><div class="agent-metric-val">18.4</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Sharpe (30d)</div><div class="agent-metric-val">3.12</div></div>
+          </div>
+          <div class="agent-activity">
+            <span>Current Task:</span> XOM/CVX pair trade triggered at z-score 2.87. Monitoring cointegration stability. Credit spread momentum model v3.7 self-updated.
+          </div>
+        </div>
+        <!-- SENTINEL -->
+        <div class="agent-card" style="--agent-color:#e05252">
+          <div class="agent-status"><div class="pulse warn"></div><span style="font-size:9px;font-family:var(--font-mono);color:var(--red)">ALERT · FLAGGING</span></div>
+          <div class="agent-name">SENTINEL</div>
+          <div class="agent-role">Risk Management Agent</div>
+          <div class="agent-metrics">
+            <div class="agent-metric"><div class="agent-metric-label">Risk Alerts</div><div class="agent-metric-val" style="color:var(--red)">3</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">VaR (95%)</div><div class="agent-metric-val">$12.4M</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Corr Clusters</div><div class="agent-metric-val">6</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Limits Breached</div><div class="agent-metric-val" style="color:var(--red)">1</div></div>
+          </div>
+          <div class="agent-activity">
+            <span>Alert:</span> Tech sector concentration at 31.4% vs 28% limit. Recommending reduction of NVDA/MSFT positions by ~$65M. Flagged for PM review.
+          </div>
+        </div>
+        <!-- VEGA -->
+        <div class="agent-card" style="--agent-color:#c9a84c">
+          <div class="agent-status"><div class="pulse"></div><span style="font-size:9px;font-family:var(--font-mono);color:var(--green)">ACTIVE · EXECUTING</span></div>
+          <div class="agent-name">VEGA</div>
+          <div class="agent-role">Trade Execution Agent</div>
+          <div class="agent-metrics">
+            <div class="agent-metric"><div class="agent-metric-label">Orders Today</div><div class="agent-metric-val">47</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Avg Slippage</div><div class="agent-metric-val">0.04%</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">Fill Rate</div><div class="agent-metric-val">99.1%</div></div>
+            <div class="agent-metric"><div class="agent-metric-label">VWAP Outperform</div><div class="agent-metric-val" style="color:var(--green)">+2.1bps</div></div>
+          </div>
+          <div class="agent-activity">
+            <span>Current Task:</span> Executing NEXUS thesis — accumulating TSMC via iceberg algorithm. Monitoring ADR/domestic spread for optimal venue routing.
+          </div>
+        </div>
+      </div>
+
+      <!-- AGENT DEBATE LOG -->
+      <div class="card">
+        <div class="section-title">Inter-Agent Debate Log</div>
+        <div class="log-entry">
+          <div class="log-time">14:31:02</div>
+          <div class="log-content"><strong>NEXUS → ATLAS</strong>: Proposing long EUR tech exposure based on ECB forward guidance. Fundamental catalyst: German industrial output beat (+3.2% vs +1.1% est).</div>
+        </div>
+        <div class="log-entry">
+          <div class="log-time">14:31:18</div>
+          <div class="log-content"><strong>ATLAS → NEXUS</strong>: Countering — EUR/USD breakout risk elevated. DXY momentum +0.6σ above 20d mean. Macro regime incompatible with EUR long. Confidence reduction: 82% → 61%.</div>
+        </div>
+        <div class="log-entry">
+          <div class="log-time">14:31:45</div>
+          <div class="log-content"><strong>SENTINEL → ALL</strong>: Risk veto condition not met. Hedged structure acceptable if EUR duration ≤ 0.4% NAV. Approving with constraint.</div>
+        </div>
+        <div class="log-entry">
+          <div class="log-time">14:32:01</div>
+          <div class="log-content"><strong>VEGA → NEXUS</strong>: Acknowledged. Sizing EUR tech basket at 0.38% NAV. Routing through CME FX overlay. ETA execution: 14:34 EST.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== RESEARCH PAGE ===== -->
+    <div class="page" id="page-research">
+      <div class="page-header flex-between">
+        <div>
+          <div class="page-title">Research <em>Engine</em></div>
+          <div class="page-subtitle">NEXUS + ATLAS active thesis generation</div>
+        </div>
+        <div class="toggle-row">
+          <button class="toggle-btn active" onclick="filterTheses('all',this)">All (12)</button>
+          <button class="toggle-btn" onclick="filterTheses('long',this)">Long (8)</button>
+          <button class="toggle-btn" onclick="filterTheses('short',this)">Short (3)</button>
+          <button class="toggle-btn" onclick="filterTheses('macro',this)">Macro (1)</button>
+        </div>
+      </div>
+
+      <div id="thesis-list">
+
+        <div class="thesis" data-type="long">
+          <div class="thesis-header">
+            <div>
+              <div class="thesis-ticker">TSM <span style="font-size:11px;color:var(--text-muted)">· ADR</span></div>
+              <div class="thesis-name">Taiwan Semiconductor Manufacturing</div>
+              <div style="margin-top:6px;display:flex;gap:6px"><span class="badge badge-green">LONG</span><span class="badge badge-gold">NEXUS</span><span class="badge badge-gray">Fundamental</span></div>
+            </div>
+            <div style="text-align:right">
+              <div class="thesis-conf">82%</div>
+              <div style="font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">confidence</div>
+            </div>
+          </div>
+          <div class="thesis-body">AI inference chip demand inflection underpriced by market. N2 process node yield improving faster than consensus. NVIDIA, AMD, Apple order backlog extending into Q4 2027. Capex re-acceleration cycle beginning — supply-constrained at current valuations (12.8x NTM EV/EBITDA vs 5yr avg 15.2x).</div>
+          <div class="thesis-signals">
+            <span class="signal-tag">AI Capex Cycle</span>
+            <span class="signal-tag">Supply Chain Data</span>
+            <span class="signal-tag">Yield Improvement</span>
+            <span class="signal-tag">Order Flow</span>
+            <span class="signal-tag">Relative Valuation</span>
+          </div>
+          <div class="debate-section">
+            <div class="debate-label">Bear Case (ORCA)</div>
+            <div class="debate-text">Geopolitical premium not adequately reflected. Taiwan Strait incident probability 12-18mo window elevated per State Dept signals. China semiconductor self-sufficiency timeline accelerating. Short-term: ADR discount to local shares unusually narrow — reversion risk.</div>
+          </div>
+          <div style="margin-top:10px;font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">Invalidation: N2 yield below 60% by Q3 · NVDA guidance cut · Geopolitical escalation index >7.2</div>
+        </div>
+
+        <div class="thesis" data-type="long">
+          <div class="thesis-header">
+            <div>
+              <div class="thesis-ticker">NOVO-B <span style="font-size:11px;color:var(--text-muted)">· CPH</span></div>
+              <div class="thesis-name">Novo Nordisk A/S</div>
+              <div style="margin-top:6px;display:flex;gap:6px"><span class="badge badge-green">LONG</span><span class="badge badge-gold">NEXUS</span><span class="badge badge-gray">Event-Driven</span></div>
+            </div>
+            <div style="text-align:right">
+              <div class="thesis-conf">76%</div>
+              <div style="font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">confidence</div>
+            </div>
+          </div>
+          <div class="thesis-body">CagriSema Phase III readout expected Q3 2026 — consensus underpricing obesity+NASH dual approval pathway. Market missing manufacturing ramp optionality (Kalundborg expansion unlocks 40% capacity increase). EU reimbursement negotiations tracking favorably based on health ministry budget filings.</div>
+          <div class="thesis-signals">
+            <span class="signal-tag">Trial Endpoints</span>
+            <span class="signal-tag">Manufacturing Data</span>
+            <span class="signal-tag">Regulatory Filings</span>
+            <span class="signal-tag">Pricing Comps</span>
+          </div>
+          <div class="debate-section">
+            <div class="debate-label">Bear Case (ATLAS)</div>
+            <div class="debate-text">DKK strength headwind underappreciated at current EUR/DKK peg. Eli Lilly tirzepatide label expansion broadening competitive moat. US rebate negotiations could compress net pricing 15-20%. Position sizing caution warranted.</div>
+          </div>
+          <div style="margin-top:10px;font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">Invalidation: Phase III primary endpoint miss · FDA manufacturing hold · Lilly label expanded to NASH first</div>
+        </div>
+
+        <div class="thesis" data-type="short">
+          <div class="thesis-header">
+            <div>
+              <div class="thesis-ticker">INTC <span style="font-size:11px;color:var(--text-muted)">· NAS</span></div>
+              <div class="thesis-name">Intel Corporation</div>
+              <div style="margin-top:6px;display:flex;gap:6px"><span class="badge badge-red">SHORT</span><span class="badge badge-gold">ORCA</span><span class="badge badge-gray">StatArb</span></div>
+            </div>
+            <div style="text-align:right">
+              <div class="thesis-conf low">71%</div>
+              <div style="font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">confidence</div>
+            </div>
+          </div>
+          <div class="thesis-body">IFS customer pipeline significantly below breakeven threshold. 18A node yield tracking 45% — well below 65% needed for profitability. MSCI rebalance outflow pressure Q2 2026. Short vs TSM pair at current spread (z-score 2.4σ) has historical mean-reversion 87% within 3 months.</div>
+          <div class="thesis-signals">
+            <span class="signal-tag">Yield Tracking</span>
+            <span class="signal-tag">Index Flow</span>
+            <span class="signal-tag">Pair Z-Score</span>
+            <span class="signal-tag">Customer Signals</span>
+          </div>
+          <div class="debate-section">
+            <div class="debate-label">Bull Case (NEXUS)</div>
+            <div class="debate-text">Government subsidy backstop ($8.5B CHIPS Act disbursement pending) creates floor. New CEO foundry-first strategy may re-rate valuation. Short covering risk if MSCI inclusion re-weighting reverses.</div>
+          </div>
+          <div style="margin-top:10px;font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">Invalidation: IFS yield >55% · Major customer win announcement · CHIPS disbursement accelerated</div>
+        </div>
+
+        <div class="thesis" data-type="macro">
+          <div class="thesis-header">
+            <div>
+              <div class="thesis-ticker">MACRO <span style="font-size:11px;color:var(--text-muted)">· Global</span></div>
+              <div class="thesis-name">Fed Policy Pivot — Rate Duration Trade</div>
+              <div style="margin-top:6px;display:flex;gap:6px"><span class="badge badge-green">LONG DURATION</span><span class="badge badge-gold">ATLAS</span><span class="badge badge-gray">Macro</span></div>
+            </div>
+            <div style="text-align:right">
+              <div class="thesis-conf mid">68%</div>
+              <div style="font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">confidence</div>
+            </div>
+          </div>
+          <div class="thesis-body">Core PCE trajectory supports 2 cuts in H2 2026. Labor market softening signals (quits rate -0.3pts, temp employment -42K). Long 10yr UST / short 2yr UST steepener positioned for curve normalization. Real rates at 2.1% provide buffer vs history.</div>
+          <div class="thesis-signals">
+            <span class="signal-tag">PCE Trajectory</span>
+            <span class="signal-tag">Labor Data</span>
+            <span class="signal-tag">Curve Shape</span>
+            <span class="signal-tag">Fed Minutes NLP</span>
+          </div>
+          <div class="debate-section">
+            <div class="debate-label">Bear Case (NEXUS)</div>
+            <div class="debate-text">Services inflation sticky at 4.1%. Housing OER still running hot. One upside surprise re-prices terminal rate to 4.5%+ invalidating steepener. Recommend partial hedge via SOFR puts.</div>
+          </div>
+          <div style="margin-top:10px;font-size:9px;font-family:var(--font-mono);color:var(--text-muted)">Invalidation: Core PCE >3.2% two consecutive months · Fed hawkish pivot language · UST foreign demand deterioration</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== STRATEGY PAGE ===== -->
+    <div class="page" id="page-strategy">
+      <div class="page-header">
+        <div class="page-title">Strategy <em>Discovery Lab</em></div>
+        <div class="page-subtitle">ORCA self-evolving strategy archetypes · v3.7 model</div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:32px">
+        <div class="metric"><div class="metric-label">Active Strategies</div><div class="metric-value gold">11</div><div class="metric-delta">4 in validation</div></div>
+        <div class="metric"><div class="metric-label">Avg Backtest Sharpe</div><div class="metric-value green">2.87</div><div class="metric-delta up">▲ +0.21 vs prior gen</div></div>
+        <div class="metric"><div class="metric-label">Novel Factor Combos</div><div class="metric-value">34</div><div class="metric-delta">7 new this week</div></div>
+        <div class="metric"><div class="metric-label">Model Version</div><div class="metric-value">v3.7</div><div class="metric-delta">Updated 6h ago</div></div>
+      </div>
+
+      <div class="card card-gold" style="margin-bottom:24px">
+        <div class="section-title">Strategy Performance Matrix</div>
+        <table class="data-table">
+          <thead><tr>
+            <th>Strategy</th><th>Type</th><th>Agent</th><th>Sharpe</th><th>Max DD</th><th>YTD Return</th><th>Status</th><th>Version</th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="primary">AI Capex Momentum</td><td>Equity L/S</td><td class="gold">NEXUS</td><td class="primary">3.42</td><td style="color:var(--red)">-3.1%</td><td style="color:var(--green)">+28.4%</td><td><span class="badge badge-active">Live</span></td><td>v2.4</td></tr>
+            <tr><td class="primary">Credit-Equity Divergence</td><td>Stat Arb</td><td class="gold">ORCA</td><td class="primary">2.91</td><td style="color:var(--red)">-2.8%</td><td style="color:var(--green)">+19.2%</td><td><span class="badge badge-active">Live</span></td><td>v3.7</td></tr>
+            <tr><td class="primary">Fed Regime Steepener</td><td>Macro</td><td class="gold">ATLAS</td><td class="primary">2.44</td><td style="color:var(--red)">-4.2%</td><td style="color:var(--green)">+14.6%</td><td><span class="badge badge-active">Live</span></td><td>v1.9</td></tr>
+            <tr><td class="primary">EM Small Cap Value</td><td>Equity L/S</td><td class="gold">NEXUS</td><td class="primary">2.18</td><td style="color:var(--red)">-5.8%</td><td style="color:var(--green)">+11.3%</td><td><span class="badge badge-active">Live</span></td><td>v1.2</td></tr>
+            <tr><td class="primary">Satellite Supply Chain</td><td>Alt Data</td><td class="gold">ORCA</td><td class="primary">1.97</td><td style="color:var(--red)">-6.1%</td><td style="color:var(--green)">+8.7%</td><td><span class="badge badge-active">Live</span></td><td>v4.1</td></tr>
+            <tr><td class="primary">NLP Narrative Shift</td><td>Sentiment</td><td class="gold">NEXUS</td><td class="primary">1.82</td><td style="color:var(--red)">-4.4%</td><td style="color:var(--green)">+7.1%</td><td><span class="badge badge-active">Live</span></td><td>v2.1</td></tr>
+            <tr><td class="primary">Cross-Border Merger Arb</td><td>Event</td><td class="gold">ATLAS</td><td class="primary">1.64</td><td style="color:var(--red)">-3.9%</td><td style="color:var(--green)">+5.4%</td><td><span class="badge badge-gray">Paused</span></td><td>v1.0</td></tr>
+            <tr><td class="primary">Microstructure Flow Alpha</td><td>HF</td><td class="gold">VEGA</td><td class="primary">4.12</td><td style="color:var(--red)">-0.8%</td><td style="color:var(--green)">+9.8%</td><td><span class="badge badge-active">Live</span></td><td>v5.2</td></tr>
+            <tr><td class="primary">Volatility Surface Arb</td><td>Derivatives</td><td class="gold">ORCA</td><td class="primary">2.66</td><td style="color:var(--red)">-3.3%</td><td style="color:var(--green)">+12.1%</td><td><span class="badge badge-active">Live</span></td><td>v2.8</td></tr>
+            <tr><td class="primary">Web Traffic Lead Indicator</td><td>Alt Data</td><td class="gold">NEXUS</td><td class="primary">1.44</td><td style="color:var(--red)">-7.2%</td><td style="color:var(--green)">+4.2%</td><td><span class="badge badge-gray">Validating</span></td><td>v0.3</td></tr>
+            <tr><td class="primary">Carbon Credit Arb</td><td>Alt Data</td><td class="gold">ATLAS</td><td class="primary">0.98</td><td style="color:var(--red)">-8.9%</td><td style="color:var(--red)">-1.4%</td><td><span class="badge badge-gray">Validating</span></td><td>v0.1</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Regime Detection</div>
+        <div class="chart-wrap" style="height:160px">
+          <canvas id="regimeChart" role="img" aria-label="Market regime classification over time">Regime classification: risk-on, risk-off, transition periods.</canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PORTFOLIO PAGE ===== -->
+    <div class="page" id="page-portfolio">
+      <div class="page-header">
+        <div class="page-title">Portfolio <em>Construction</em></div>
+        <div class="page-subtitle">147 positions · $2.47B NAV · risk-budgeted allocation</div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:32px">
+        <div class="metric"><div class="metric-label">Gross Exposure</div><div class="metric-value gold">$3.84B</div><div class="metric-delta">156% gross leverage</div></div>
+        <div class="metric"><div class="metric-label">Net Exposure</div><div class="metric-value">$1.73B</div><div class="metric-delta">70% net long</div></div>
+        <div class="metric"><div class="metric-label">Long Book</div><div class="metric-value green">$2.78B</div><div class="metric-delta up">113% of NAV</div></div>
+        <div class="metric"><div class="metric-label">Short Book</div><div class="metric-value red">$1.06B</div><div class="metric-delta">43% of NAV</div></div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab(this,'tab-top-positions')">Top Positions</div>
+        <div class="tab" onclick="switchTab(this,'tab-risk-budget')">Risk Budget</div>
+        <div class="tab" onclick="switchTab(this,'tab-geography')">Geography</div>
+      </div>
+
+      <div class="tab-content active" id="tab-top-positions">
+        <div class="card">
+          <table class="data-table">
+            <thead><tr>
+              <th>Ticker</th><th>Name</th><th>Direction</th><th>Size ($M)</th><th>% NAV</th><th>P&L Today</th><th>Thesis Agent</th><th>Conviction</th>
+            </tr></thead>
+            <tbody>
+              <tr><td class="gold">NVDA</td><td class="primary">NVIDIA Corp</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$148.2M</td><td>6.0%</td><td style="color:var(--green)">+$2.14M</td><td class="gold">NEXUS</td><td>87%</td></tr>
+              <tr><td class="gold">TSM</td><td class="primary">Taiwan Semi ADR</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$124.6M</td><td>5.0%</td><td style="color:var(--green)">+$1.87M</td><td class="gold">NEXUS</td><td>82%</td></tr>
+              <tr><td class="gold">NOVO-B</td><td class="primary">Novo Nordisk</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$108.4M</td><td>4.4%</td><td style="color:var(--red)">-$0.42M</td><td class="gold">NEXUS</td><td>76%</td></tr>
+              <tr><td class="gold">TLT</td><td class="primary">20Y UST ETF</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$96.8M</td><td>3.9%</td><td style="color:var(--green)">+$0.28M</td><td class="gold">ATLAS</td><td>68%</td></tr>
+              <tr><td class="gold">JPM</td><td class="primary">JPMorgan Chase</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$87.3M</td><td>3.5%</td><td style="color:var(--green)">+$0.61M</td><td class="gold">NEXUS</td><td>71%</td></tr>
+              <tr><td class="gold">XOM</td><td class="primary">Exxon Mobil</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$74.2M</td><td>3.0%</td><td style="color:var(--red)">-$0.18M</td><td class="gold">ORCA</td><td>64%</td></tr>
+              <tr><td class="gold">INTC</td><td class="primary">Intel Corp</td><td><span class="badge badge-red">SHORT</span></td><td class="primary">$62.4M</td><td>2.5%</td><td style="color:var(--green)">+$0.44M</td><td class="gold">ORCA</td><td>71%</td></tr>
+              <tr><td class="gold">META</td><td class="primary">Meta Platforms</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$58.9M</td><td>2.4%</td><td style="color:var(--green)">+$0.73M</td><td class="gold">NEXUS</td><td>69%</td></tr>
+              <tr><td class="gold">CVX</td><td class="primary">Chevron Corp</td><td><span class="badge badge-red">SHORT</span></td><td class="primary">$47.8M</td><td>1.9%</td><td style="color:var(--red)">-$0.21M</td><td class="gold">ORCA</td><td>64%</td></tr>
+              <tr><td class="gold">ASML</td><td class="primary">ASML Holding</td><td><span class="badge badge-green">LONG</span></td><td class="primary">$44.6M</td><td>1.8%</td><td style="color:var(--green)">+$0.32M</td><td class="gold">NEXUS</td><td>78%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-risk-budget">
+        <div class="grid-2">
+          <div class="card">
+            <div class="section-title">Risk Budget Allocation</div>
+            <div class="chart-wrap" style="height:220px">
+              <canvas id="riskBudgetChart" role="img" aria-label="Risk budget allocation by strategy">Risk budget by strategy type.</canvas>
+            </div>
+          </div>
+          <div class="card">
+            <div class="section-title">VaR Attribution</div>
+            <div class="risk-row"><div class="risk-label">Equity L/S</div><div class="risk-bar-wrap"><div class="progress-fill" style="width:62%"></div></div><div class="risk-val">$7.7M</div></div>
+            <div class="risk-row"><div class="risk-label">Macro/Rates</div><div class="risk-bar-wrap"><div class="progress-fill" style="width:28%"></div></div><div class="risk-val">$3.5M</div></div>
+            <div class="risk-row"><div class="risk-label">Stat Arb</div><div class="risk-bar-wrap"><div class="progress-fill green" style="width:8%"></div></div><div class="risk-val">$1.0M</div></div>
+            <div class="risk-row"><div class="risk-label">Alt Data</div><div class="risk-bar-wrap"><div class="progress-fill green" style="width:2%"></div></div><div class="risk-val">$0.2M</div></div>
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+              <div class="flex-between" style="margin-bottom:8px">
+                <span style="font-size:10px;font-family:var(--font-mono);color:var(--text-muted)">Total VaR (95% 1-day)</span>
+                <span style="font-size:16px;font-family:var(--font-display);color:var(--cream)">$12.4M</span>
+              </div>
+              <div class="flex-between">
+                <span style="font-size:10px;font-family:var(--font-mono);color:var(--text-muted)">VaR Limit</span>
+                <span style="font-size:16px;font-family:var(--font-display);color:var(--green)">$18.0M</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-geography">
+        <div class="card">
+          <div class="section-title">Geographic Exposure</div>
+          <div class="chart-wrap" style="height:220px">
+            <canvas id="geoChart" role="img" aria-label="Geographic exposure bar chart">Geographic exposure by region.</canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== RISK PAGE ===== -->
+    <div class="page" id="page-risk">
+      <div class="page-header">
+        <div class="page-title">Risk <em>Monitor</em></div>
+        <div class="page-subtitle">SENTINEL agent · live risk surveillance</div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:32px">
+        <div class="metric"><div class="metric-label">Portfolio VaR (95%)</div><div class="metric-value">$12.4M</div><div class="metric-delta">vs $18M limit</div></div>
+        <div class="metric"><div class="metric-label">Current Drawdown</div><div class="metric-value red">-4.2%</div><div class="metric-delta">vs -8% guardrail</div></div>
+        <div class="metric"><div class="metric-label">Beta to S&P500</div><div class="metric-value">0.62</div><div class="metric-delta">within 0.8 limit</div></div>
+        <div class="metric"><div class="metric-label">Active Alerts</div><div class="metric-value red">3</div><div class="metric-delta">1 limit breach</div></div>
+      </div>
+
+      <!-- ALERTS -->
+      <div class="card" style="margin-bottom:24px;border-color:rgba(224,82,82,0.3)">
+        <div class="section-title" style="color:var(--red)">Active Risk Alerts</div>
+        <div class="log-entry">
+          <div class="log-time" style="color:var(--red)">BREACH</div>
+          <div class="log-content" style="color:var(--text-primary)"><strong>SENTINEL:</strong> Technology sector concentration 31.4% — exceeds 28% limit by 3.4%. Recommended action: reduce NVDA by $40M + MSFT by $25M. Awaiting PM approval. <span class="log-type alert">ACTION REQ</span></div>
+        </div>
+        <div class="log-entry">
+          <div class="log-time" style="color:var(--gold)">WARN</div>
+          <div class="log-content"><strong>SENTINEL:</strong> Correlation cluster detected — NVDA/MSFT/AMZN showing 0.84 30-day correlation. Effective diversification reduced. Monitor for systemic risk amplification.</div>
+        </div>
+        <div class="log-entry">
+          <div class="log-time" style="color:var(--gold)">WARN</div>
+          <div class="log-content"><strong>SENTINEL:</strong> Taiwan geopolitical risk index elevated (6.8/10). TSM ADR position $124.6M at risk. Scenario: -35% move would cost $43.6M (-1.77% NAV). Hedge recommendation: buy puts.</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button class="btn btn-gold btn-sm">Approve SENTINEL Recommendations</button>
+          <button class="btn btn-outline btn-sm">Override with Note</button>
+          <button class="btn btn-outline btn-sm">Escalate to Risk Officer</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Concentration Limits</div>
+          <div class="risk-row"><div class="risk-label">Single Name Max</div><div class="risk-bar-wrap"><div class="progress-fill" style="width:60%"></div></div><div class="risk-val">6.0% / 10%</div></div>
+          <div class="risk-row"><div class="risk-label">Sector Max</div><div class="risk-bar-wrap"><div class="progress-fill red" style="width:79%"></div></div><div class="risk-val" style="color:var(--red)">31.4% / 28%</div></div>
+          <div class="risk-row"><div class="risk-label">Country Max</div><div class="risk-bar-wrap"><div class="progress-fill" style="width:54%"></div></div><div class="risk-val">54% / 65%</div></div>
+          <div class="risk-row"><div class="risk-label">Gross Leverage</div><div class="risk-bar-wrap"><div class="progress-fill" style="width:78%"></div></div><div class="risk-val">156% / 200%</div></div>
+          <div class="risk-row"><div class="risk-label">Net Exposure</div><div class="risk-bar-wrap"><div class="progress-fill green" style="width:70%"></div></div><div class="risk-val">70% / 100%</div></div>
+          <div class="risk-row"><div class="risk-label">Max Drawdown</div><div class="risk-bar-wrap"><div class="progress-fill" style="width:53%"></div></div><div class="risk-val">4.2% / 8%</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Drawdown History</div>
+          <div class="chart-wrap" style="height:200px">
+            <canvas id="drawdownChart" role="img" aria-label="Portfolio drawdown over time">Rolling drawdown chart.</canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ORDERS PAGE ===== -->
+    <div class="page" id="page-orders">
+      <div class="page-header">
+        <div class="page-title">Order <em>Management</em></div>
+        <div class="page-subtitle">VEGA execution agent · 47 orders today</div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:32px">
+        <div class="metric"><div class="metric-label">Orders Today</div><div class="metric-value gold">47</div><div class="metric-delta">36 filled · 11 pending</div></div>
+        <div class="metric"><div class="metric-label">Volume Traded</div><div class="metric-value">$284M</div><div class="metric-delta">11.5% of NAV</div></div>
+        <div class="metric"><div class="metric-label">Avg Slippage</div><div class="metric-value green">0.04%</div><div class="metric-delta up">▲ vs 0.07% target</div></div>
+        <div class="metric"><div class="metric-label">VWAP vs Benchmark</div><div class="metric-value green">+2.1bps</div><div class="metric-delta up">Outperforming</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Pending Orders</div>
+          <div class="order-row">
+            <div class="order-dir buy">BUY</div>
+            <div class="order-info"><div class="order-ticker">TSM</div><div class="order-detail">Iceberg · NYSE · VWAP algo · 47,200 shares remaining</div></div>
+            <div><div class="order-size" style="color:var(--green)">$42.1M</div><div class="order-agent">NEXUS thesis</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir buy">BUY</div>
+            <div class="order-info"><div class="order-ticker">EUR Tech Basket</div><div class="order-detail">STOXX · Limit · 0.38% NAV ceiling</div></div>
+            <div><div class="order-size" style="color:var(--green)">$9.4M</div><div class="order-agent">NEXUS + ATLAS</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir sell">SELL</div>
+            <div class="order-info"><div class="order-ticker">NVDA</div><div class="order-detail">SENTINEL risk reduction · TWAP · 3hr window</div></div>
+            <div><div class="order-size" style="color:var(--red)">$40.0M</div><div class="order-agent">SENTINEL alert</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir sell">SHORT</div>
+            <div class="order-info"><div class="order-ticker">INTC</div><div class="order-detail">ORCA pair trade · Dark pool · Z-score 2.87</div></div>
+            <div><div class="order-size" style="color:var(--red)">$18.2M</div><div class="order-agent">ORCA arb</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir buy">BUY</div>
+            <div class="order-info"><div class="order-ticker">TLT Puts</div><div class="order-detail">CBOE · Protective hedge · ATLAS recommendation</div></div>
+            <div><div class="order-size" style="color:var(--green)">$2.8M</div><div class="order-agent">ATLAS macro</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Today's Filled Orders</div>
+          <div class="order-row">
+            <div class="order-dir sell">SELL</div>
+            <div class="order-info"><div class="order-ticker">AMZN</div><div class="order-detail">Closed short · 12,000 shares · 14:19 EST</div></div>
+            <div><div class="order-size" style="color:var(--green)">+$284K P&L</div><div class="order-agent">ORCA</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir buy">BUY</div>
+            <div class="order-info"><div class="order-ticker">NVDA</div><div class="order-detail">47,200 shares @ $891.40 · 14:28 EST</div></div>
+            <div><div class="order-size" style="color:var(--green)">$42.1M</div><div class="order-agent">NEXUS</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir buy">BUY</div>
+            <div class="order-info"><div class="order-ticker">JPM</div><div class="order-detail">15,000 shares · earnings beat follow-through</div></div>
+            <div><div class="order-size" style="color:var(--green)">$3.2M</div><div class="order-agent">NEXUS</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir sell">SHORT</div>
+            <div class="order-info"><div class="order-ticker">CVX</div><div class="order-detail">XOM/CVX pair short · 28,400 shares</div></div>
+            <div><div class="order-size" style="color:var(--red)">$4.1M</div><div class="order-agent">ORCA</div></div>
+          </div>
+          <div class="order-row">
+            <div class="order-dir buy">BUY</div>
+            <div class="order-info"><div class="order-ticker">2yr UST</div><div class="order-detail">Curve steepener · ATLAS macro thesis</div></div>
+            <div><div class="order-size" style="color:var(--green)">$22.0M</div><div class="order-agent">ATLAS</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== COMPLIANCE PAGE ===== -->
+    <div class="page" id="page-compliance">
+      <div class="page-header">
+        <div class="page-title">Compliance <em>Oversight</em></div>
+        <div class="page-subtitle">Regulatory framework · audit trail · permissioned access</div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:32px">
+        <div class="metric"><div class="metric-label">Compliance Score</div><div class="metric-value green">97.3%</div><div class="metric-delta up">1 open item</div></div>
+        <div class="metric"><div class="metric-label">Regulatory Filings</div><div class="metric-value gold">Current</div><div class="metric-delta">13F · Form ADV · AIFMD</div></div>
+        <div class="metric"><div class="metric-label">Position Limit Breaches</div><div class="metric-value red">1</div><div class="metric-delta">Tech sector concentration</div></div>
+        <div class="metric"><div class="metric-label">Human Overrides</div><div class="metric-value">4</div><div class="metric-delta">This month</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Compliance Timeline</div>
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:var(--red)"></div>
+            <div class="timeline-info">
+              <div class="timeline-event">Tech sector limit breach — SENTINEL alert issued</div>
+              <div class="timeline-meta">Today 14:31 · Awaiting PM resolution · SENTINEL/SN-2026-047</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-info">
+              <div class="timeline-event">NEXUS TSM thesis approved — $124.6M position initiated</div>
+              <div class="timeline-meta">Today 09:14 · Auto-approved within risk limits · NEXUS/TH-2026-118</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-info">
+              <div class="timeline-event">Model version update ORCA v3.7 — strategy parameters changed</div>
+              <div class="timeline-meta">Yesterday 22:41 · Self-improvement loop · ORCA/MV-2026-031</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:var(--gold-dark)"></div>
+            <div class="timeline-info">
+              <div class="timeline-event">Human override — PM extended INTC short beyond ORCA recommendation</div>
+              <div class="timeline-meta">Apr 29 · J. Harlow (PM) · Override code OVR-2026-041</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-info">
+              <div class="timeline-event">Monthly Form ADV amendment filed — SEC submitted</div>
+              <div class="timeline-meta">Apr 28 · Compliance auto-generated · REG-2026-ADV-04</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-info">
+              <div class="timeline-event">13F quarterly filing submitted to SEC</div>
+              <div class="timeline-meta">Apr 15 · $2.44B AUM reported · REG-2026-13F-Q1</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Role-Based Access Control</div>
+          <table class="data-table">
+            <thead><tr><th>User</th><th>Role</th><th>Access Level</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="primary">James Harlow</td><td class="gold">Portfolio Manager</td><td>Trade approval · Override · Research</td><td><span class="badge badge-active">Active</span></td></tr>
+              <tr><td class="primary">Sarah Chen</td><td class="gold">Risk Officer</td><td>Risk limits · SENTINEL override · VaR</td><td><span class="badge badge-active">Active</span></td></tr>
+              <tr><td class="primary">Michael Torres</td><td class="gold">Research Supervisor</td><td>Thesis review · Agent tuning · Research</td><td><span class="badge badge-active">Active</span></td></tr>
+              <tr><td class="primary">Compliance Bot</td><td class="gold">Compliance Viewer</td><td>Read-only · Filing generation · Audit</td><td><span class="badge badge-active">Active</span></td></tr>
+              <tr><td class="primary">Admin</td><td class="gold">System Admin</td><td>Full access · Model versioning · User mgmt</td><td><span class="badge badge-active">Active</span></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:20px">
+            <div class="section-title">Regulatory Status</div>
+            <div class="risk-row"><div class="risk-label">SEC Registration</div><div style="flex:1"></div><div><span class="badge badge-green">Current</span></div></div>
+            <div class="risk-row"><div class="risk-label">CFTC CPO/CTA</div><div style="flex:1"></div><div><span class="badge badge-green">Registered</span></div></div>
+            <div class="risk-row"><div class="risk-label">AIFMD (EU)</div><div style="flex:1"></div><div><span class="badge badge-green">Compliant</span></div></div>
+            <div class="risk-row"><div class="risk-label">MiFID II</div><div style="flex:1"></div><div><span class="badge badge-green">Compliant</span></div></div>
+            <div class="risk-row"><div class="risk-label">Short Selling Disclosure</div><div style="flex:1"></div><div><span class="badge badge-gold">Review</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== AUDIT PAGE ===== -->
+    <div class="page" id="page-audit">
+      <div class="page-header">
+        <div class="page-title">Audit <em>Log</em></div>
+        <div class="page-subtitle">Immutable decision trail · every agent action versioned</div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:32px">
+        <div class="metric"><div class="metric-label">Events Today</div><div class="metric-value gold">1,847</div></div>
+        <div class="metric"><div class="metric-label">Agent Decisions</div><div class="metric-value">1,204</div></div>
+        <div class="metric"><div class="metric-label">Human Actions</div><div class="metric-value">12</div></div>
+        <div class="metric"><div class="metric-label">Model Updates</div><div class="metric-value">3</div></div>
+      </div>
+
+      <div class="card">
+        <div class="flex-between" style="margin-bottom:16px">
+          <div class="section-title" style="margin-bottom:0">Event Stream</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm">Filter</button>
+            <button class="btn btn-outline btn-sm">Export CSV</button>
+            <button class="btn btn-gold btn-sm">Download Full Audit</button>
+          </div>
+        </div>
+        <table class="data-table">
+          <thead><tr>
+            <th>Timestamp</th><th>Event ID</th><th>Agent</th><th>Event Type</th><th>Description</th><th>Model Ver</th><th>Reversible</th>
+          </tr></thead>
+          <tbody>
+            <tr><td>14:32:07</td><td class="gold">AUD-047291</td><td>SENTINEL</td><td><span class="badge badge-red">RISK ALERT</span></td><td class="primary">Tech concentration 31.4% > 28% limit. Flagged for PM review.</td><td>SENT-v2.1</td><td>—</td></tr>
+            <tr><td>14:31:22</td><td class="gold">AUD-047290</td><td>NEXUS</td><td><span class="badge badge-gold">THESIS UPDATE</span></td><td class="primary">TSM confidence revised 74%→82% post 10-Q review</td><td>NXS-v4.2</td><td>No</td></tr>
+            <tr><td>14:29:47</td><td class="gold">AUD-047289</td><td>VEGA</td><td><span class="badge badge-green">ORDER EXEC</span></td><td class="primary">NVDA 47,200 shares bought @ $891.40 via VWAP</td><td>VGA-v5.2</td><td>No</td></tr>
+            <tr><td>14:28:11</td><td class="gold">AUD-047288</td><td>ORCA</td><td><span class="badge badge-gold">SIGNAL GEN</span></td><td class="primary">XOM/CVX z-score 2.87 — pair trade initiated</td><td>ORC-v3.7</td><td>Yes</td></tr>
+            <tr><td>14:26:03</td><td class="gold">AUD-047287</td><td>ATLAS</td><td><span class="badge badge-gold">MODEL UPDATE</span></td><td class="primary">Fed pivot probability revised 64%→68% based on PCE revision</td><td>ATL-v1.9</td><td>No</td></tr>
+            <tr><td>14:23:58</td><td class="gold">AUD-047286</td><td>NEXUS</td><td><span class="badge badge-gray">DEBATE INIT</span></td><td class="primary">EUR tech thesis debate opened with ATLAS</td><td>NXS-v4.2</td><td>Yes</td></tr>
+            <tr><td>14:22:11</td><td class="gold">AUD-047285</td><td>SENTINEL</td><td><span class="badge badge-gold">CORRELATION</span></td><td class="primary">NVDA/MSFT/AMZN cluster detected at 0.84 correlation</td><td>SENT-v2.1</td><td>—</td></tr>
+            <tr><td>14:19:15</td><td class="gold">AUD-047284</td><td>VEGA</td><td><span class="badge badge-green">ORDER EXEC</span></td><td class="primary">AMZN 12,000 shares short closed @ +$284K PnL</td><td>VGA-v5.2</td><td>No</td></tr>
+            <tr><td>22:41:03</td><td class="gold">AUD-047101</td><td>ORCA</td><td><span class="badge badge-gold">MODEL SELF-UPDATE</span></td><td class="primary">Momentum factor weight +0.04 — self-improvement loop v3.6→v3.7</td><td>ORC-v3.7</td><td>Yes</td></tr>
+            <tr><td>17:22:44</td><td class="gold">AUD-047082</td><td>J.Harlow</td><td><span class="badge badge-gray">HUMAN OVERRIDE</span></td><td class="primary">Extended INTC short — added $18M beyond ORCA recommendation</td><td>HUMAN</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+// ── NAVIGATION ──
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  initChartsForPage(page);
+}
+
+// ── TABS ──
+function switchTab(el, contentId) {
+  const parent = el.closest('.page');
+  parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  parent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(contentId).classList.add('active');
+  if(contentId === 'tab-risk-budget') setTimeout(()=>initRiskBudgetChart(),50);
+  if(contentId === 'tab-geography') setTimeout(()=>initGeoChart(),50);
+}
+
+// ── THESIS FILTER ──
+function filterTheses(type, el) {
+  el.closest('.toggle-row').querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.thesis').forEach(t => {
+    t.style.display = (type==='all' || t.dataset.type===type) ? 'block' : 'none';
+  });
+}
+
+// ── CLOCK ──
+function updateClock() {
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2,'0');
+  const m = now.getMinutes().toString().padStart(2,'0');
+  const s = now.getSeconds().toString().padStart(2,'0');
+  document.getElementById('clock').textContent = `NYSE: OPEN · ${h}:${m}:${s} EST`;
+}
+setInterval(updateClock, 1000);
+
+// ── CHARTS ──
+const chartRegistry = {};
+function destroyChart(id) { if(chartRegistry[id]){chartRegistry[id].destroy();delete chartRegistry[id];} }
+
+function initChartsForPage(page) {
+  if(page==='dashboard') { initPnLChart(); initAllocationChart(); }
+  if(page==='strategy') { initRegimeChart(); }
+  if(page==='portfolio') { initRiskBudgetChart(); initGeoChart(); }
+  if(page==='risk') { initDrawdownChart(); }
+}
+
+function initPnLChart() {
+  destroyChart('pnlChart');
+  const ctx = document.getElementById('pnlChart');
+  if(!ctx) return;
+  chartRegistry['pnlChart'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Jan','Feb','Mar','Apr'],
+      datasets: [
+        { label: 'Alder.AI', data: [0, 4.2, 9.8, 18.4], borderColor: '#c9a84c', backgroundColor: 'rgba(201,168,76,0.07)', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#c9a84c', tension: 0.4, fill: true },
+        { label: 'Benchmark', data: [0, 1.8, 4.1, 9.2], borderColor: 'rgba(245,240,232,0.2)', borderDash: [4,4], borderWidth: 1.5, pointRadius: 2, tension: 0.4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(42,42,31,0.8)', lineWidth: 0.5 }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 10 } } },
+        y: { grid: { color: 'rgba(42,42,31,0.8)', lineWidth: 0.5 }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 10 }, callback: v => v + '%' } }
+      }
+    }
+  });
+}
+
+function initAllocationChart() {
+  destroyChart('allocationChart');
+  const ctx = document.getElementById('allocationChart');
+  if(!ctx) return;
+  chartRegistry['allocationChart'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Equity L/S','Macro/Rates','Stat Arb','Alt Data','Event-Driven'],
+      datasets: [{ data: [52, 18, 14, 9, 7], backgroundColor: ['#c9a84c','#4caf7d','#6aa8d4','#9a7a2e','#3d6b4f'], borderColor: '#111109', borderWidth: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: 'rgba(245,240,232,0.55)', font: { family: 'DM Mono', size: 10 }, boxWidth: 10, padding: 12 } } },
+      cutout: '68%'
+    }
+  });
+}
+
+function initRegimeChart() {
+  destroyChart('regimeChart');
+  const ctx = document.getElementById('regimeChart');
+  if(!ctx) return;
+  chartRegistry['regimeChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Jan W1','Jan W2','Jan W3','Jan W4','Feb W1','Feb W2','Feb W3','Feb W4','Mar W1','Mar W2','Mar W3','Mar W4','Apr W1','Apr W2','Apr W3','Apr W4'],
+      datasets: [
+        { label: 'Risk-On Score', data: [0.6,0.7,0.5,0.8,0.7,0.4,0.3,0.6,0.8,0.9,0.85,0.7,0.75,0.8,0.85,0.88], backgroundColor: 'rgba(76,175,125,0.5)', borderRadius: 2 },
+        { label: 'Risk-Off Score', data: [0.4,0.3,0.5,0.2,0.3,0.6,0.7,0.4,0.2,0.1,0.15,0.3,0.25,0.2,0.15,0.12], backgroundColor: 'rgba(224,82,82,0.4)', borderRadius: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: 'rgba(245,240,232,0.55)', font: { family: 'DM Mono', size: 10 }, boxWidth: 10 } } },
+      scales: {
+        x: { stacked: true, grid: { color: 'rgba(42,42,31,0.8)' }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 9 }, maxRotation: 45 } },
+        y: { stacked: true, grid: { color: 'rgba(42,42,31,0.8)' }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 10 } }, max: 1 }
+      }
+    }
+  });
+}
+
+function initRiskBudgetChart() {
+  destroyChart('riskBudgetChart');
+  const ctx = document.getElementById('riskBudgetChart');
+  if(!ctx) return;
+  chartRegistry['riskBudgetChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Equity L/S','Macro/Rates','Stat Arb','Alt Data','Derivatives'],
+      datasets: [
+        { label: 'Used', data: [42, 18, 8, 5, 12], backgroundColor: '#c9a84c', borderRadius: 3 },
+        { label: 'Remaining', data: [8, 7, 12, 10, 8], backgroundColor: 'rgba(201,168,76,0.15)', borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { labels: { color: 'rgba(245,240,232,0.55)', font: { family: 'DM Mono', size: 10 }, boxWidth: 10 } } },
+      scales: {
+        x: { stacked: true, grid: { color: 'rgba(42,42,31,0.8)' }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 10 }, callback: v => v + '%' } },
+        y: { stacked: true, grid: { display: false }, ticks: { color: 'rgba(245,240,232,0.55)', font: { family: 'DM Mono', size: 10 } } }
+      }
+    }
+  });
+}
+
+function initGeoChart() {
+  destroyChart('geoChart');
+  const ctx = document.getElementById('geoChart');
+  if(!ctx) return;
+  chartRegistry['geoChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['North America','Europe','Asia Pacific','EM Asia','Latin America','Middle East/Africa'],
+      datasets: [
+        { label: 'Long', data: [54, 22, 18, 8, 4, 2], backgroundColor: 'rgba(76,175,125,0.6)', borderRadius: 3 },
+        { label: 'Short', data: [-18, -8, -10, -4, -2, -1], backgroundColor: 'rgba(224,82,82,0.5)', borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: 'rgba(245,240,232,0.55)', font: { family: 'DM Mono', size: 10 }, boxWidth: 10 } } },
+      scales: {
+        x: { grid: { color: 'rgba(42,42,31,0.8)' }, ticks: { color: 'rgba(245,240,232,0.55)', font: { family: 'DM Mono', size: 9 }, maxRotation: 30 } },
+        y: { grid: { color: 'rgba(42,42,31,0.8)' }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 10 }, callback: v => v + '%' } }
+      }
+    }
+  });
+}
+
+function initDrawdownChart() {
+  destroyChart('drawdownChart');
+  const ctx = document.getElementById('drawdownChart');
+  if(!ctx) return;
+  chartRegistry['drawdownChart'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Jan','Feb','Mar','Apr'],
+      datasets: [
+        { label: 'Drawdown', data: [0, -1.4, -4.2, -2.1], borderColor: '#e05252', backgroundColor: 'rgba(224,82,82,0.1)', borderWidth: 2, tension: 0.4, fill: true, pointRadius: 3, pointBackgroundColor: '#e05252' },
+        { label: 'Limit', data: [-8, -8, -8, -8], borderColor: 'rgba(245,240,232,0.15)', borderDash: [4,4], borderWidth: 1.5, pointRadius: 0 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(42,42,31,0.8)' }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 10 } } },
+        y: { grid: { color: 'rgba(42,42,31,0.8)' }, ticks: { color: '#6b6b50', font: { family: 'DM Mono', size: 10 }, callback: v => v + '%' }, max: 1, min: -10 }
+      }
+    }
+  });
+}
+
+// ── INIT ──
+window.addEventListener('load', () => {
+  initPnLChart();
+  initAllocationChart();
+  updateClock();
+});
+</script>
+</body>
+</html>
