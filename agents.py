@@ -54,9 +54,11 @@ class ManagerAgent(BaseAgent):
         self.engine = ml_engine
 
     def act(self, signal_val, risk_score):
-        # Convert signal string back to numeric for the engine
+        # Convert signal string back to numeric for the engine. Pass the real
+        # signal through: collapsing SELL to 0 made a sell allocate capital.
         sig_map = {"BUY": 1, "HOLD": 0, "SELL": -1}
-        allocation = self.engine.calculate_allocation(1 if signal_val == "BUY" else 0, risk_score)
+        signal_code = sig_map.get(signal_val, 0)
+        allocation = self.engine.calculate_allocation(signal_code, risk_score)
         return {
             "metric": "Capital Allocation",
             "value": f"{allocation*100:.2f}%",
