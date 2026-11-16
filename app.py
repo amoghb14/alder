@@ -9,11 +9,18 @@ from models import AlderMLModels
 from agents import ResearcherAgent, RiskAgent, StrategistAgent, ManagerAgent
 import database as db
 
-# --- DB INITIALIZATION ---
-db.init_db()
-db.seed_test_account()
-
 st.set_page_config(page_title="ALDER | Asset Management", layout="wide")
+
+# --- DB INITIALIZATION ---
+# The database is a local SQLite file and needs no secrets. Report a failure
+# clearly instead of letting the whole app crash with a traceback.
+try:
+    db.init_db()
+    db.seed_test_account()
+except db.DatabaseError as exc:
+    st.error("Database Connection Error")
+    st.write(str(exc))
+    st.stop()
 
 # --- DARK PROFESSIONAL THEMING ---
 st.markdown(f"""
@@ -130,7 +137,7 @@ if not st.session_state.authenticated:
 
 # --- SESSION STATE ---
 if "portfolio" not in st.session_state:
-    st.session_state.portfolio = db.get_portfolio(st.session_state.user_id)
+    st.session_state.portfolio = db.ensure_portfolio(st.session_state.user_id)
 
 if "current_ticker" not in st.session_state:
     st.session_state.current_ticker = "NVDA"

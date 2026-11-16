@@ -5,3 +5,4 @@ plotly
 scikit-learn
 numpy
 joblib
+psycopg2-binary

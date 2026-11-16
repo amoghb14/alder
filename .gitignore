@@ -1,0 +1,6 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Streamlit secrets hold real credentials (e.g. DATABASE_URL) - never commit them
+.streamlit/secrets.toml

@@ -39,6 +39,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Database
+ALDER needs no configuration to run: users and portfolios are stored in a
+local SQLite file (`alder_system.db`) next to `database.py`.
+
+To run against PostgreSQL (for example Supabase), provide a connection string.
+The app uses PostgreSQL when `DATABASE_URL` is available and falls back to
+SQLite otherwise:
+
+```bash
+export DATABASE_URL="postgresql://user:password@host:5432/dbname"
+```
+
+For Streamlit Cloud deployments, put the same line in `.streamlit/secrets.toml`
+instead (`DATABASE_URL = "postgresql://..."`). A missing `secrets.toml` is not
+an error — the app simply keeps using SQLite.
+
 ### Execution
 ```bash
 streamlit run app.py
