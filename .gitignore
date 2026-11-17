@@ -7,3 +7,6 @@ __pycache__/
 
 # Local market data / job-board scan cache
 .cache/
+
+# Local runtime database
+.alder.db

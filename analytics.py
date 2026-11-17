@@ -1,65 +1,74 @@
 """Quantitative analytics: walk-forward backtest, risk metrics, model scoring.
 
-This is the module that answers the question a research desk actually asks —
-*does the signal make money after costs?* — instead of only displaying a
-prediction. It reuses the same feature set and estimator family as the live
-pipeline, but evaluates them the only honest way: an expanding-window walk-forward
-with a transaction cost on every position change, benchmarked against buy & hold.
-
-Nothing here touches the network except through ``market_data``.
+The backtest answers the question a research desk actually asks — *does the signal
+make money after costs?* — and it is deliberately strict: expanding-window refits,
+a 5-session holding period matching the model's horizon, a transaction cost on
+every position change, and a buy & hold benchmark.
 """
 
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import accuracy_score, f1_score, mean_absolute_error, mean_squared_error, r2_score
-from sklearn.tree import DecisionTreeClassifier
 
-from market_data import history
+import models
+from market_data import CACHE_DIR, history
 
 TRADING_DAYS = 252
-WARMUP = 60  # rows needed before the first out-of-sample decision
-PROB_THRESHOLD = 0.55
+EVAL_TTL = 12 * 3600
 
 
 # --------------------------------------------------------------------------- #
-# Feature engineering (shared with the live pipeline)
+# Small disk cache for expensive walk-forward evaluation
 # --------------------------------------------------------------------------- #
-def build_features(frame: pd.DataFrame) -> pd.DataFrame:
-    df = frame.copy()
-    df["Returns"] = df["Close"].pct_change()
-    df["Vol"] = df["Close"].rolling(window=5).std()
-    df["MA5"] = df["Close"].rolling(window=5).mean()
-    df["MA20"] = df["Close"].rolling(window=20).mean()
-    df["Momentum"] = df["Close"].pct_change(periods=10)
-    df["Target"] = df["Close"].shift(-1)
-    df["Up"] = (df["Target"] > df["Close"]).astype(int)
-    return df
+def _cache_path(symbol: str) -> str:
+    return os.path.join(CACHE_DIR, f"eval_{symbol.upper()}.json")
 
 
-FEATURES = ["Returns", "Vol", "MA5", "MA20", "Momentum"]
+def _read_cache(symbol: str) -> Optional[Dict[str, Any]]:
+    path = _cache_path(symbol)
+    try:
+        if os.path.exists(path) and (pd.Timestamp.now().timestamp() - os.path.getmtime(path)) < EVAL_TTL:
+            with open(path, "r", encoding="utf-8") as handle:
+                return json.load(handle)
+    except Exception:
+        pass
+    return None
 
 
-def _annualise(daily: pd.Series) -> Dict[str, float]:
+def _write_cache(symbol: str, payload: Dict[str, Any]) -> None:
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(_cache_path(symbol), "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+    except OSError:
+        pass
+
+
+# --------------------------------------------------------------------------- #
+# Metrics
+# --------------------------------------------------------------------------- #
+def _metrics(daily: pd.Series) -> Dict[str, float]:
     daily = daily.dropna()
     if daily.empty:
         return {"total_return": 0.0, "cagr": 0.0, "volatility": 0.0, "sharpe": 0.0,
                 "sortino": 0.0, "max_drawdown": 0.0, "calmar": 0.0}
     equity = (1 + daily).cumprod()
     total_return = float(equity.iloc[-1] - 1)
-    years = len(daily) / TRADING_DAYS
-    cagr = float(equity.iloc[-1] ** (1 / years) - 1) if years > 0 and equity.iloc[-1] > 0 else 0.0
+    years = max(len(daily) / TRADING_DAYS, 1e-9)
+    cagr = float(equity.iloc[-1] ** (1 / years) - 1) if equity.iloc[-1] > 0 else 0.0
     volatility = float(daily.std() * np.sqrt(TRADING_DAYS))
     downside = daily[daily < 0]
-    sortino = float(daily.mean() / downside.std() * np.sqrt(TRADING_DAYS)) if len(downside) > 1 and downside.std() > 0 else 0.0
+    sortino = (
+        float(daily.mean() / downside.std() * np.sqrt(TRADING_DAYS))
+        if len(downside) > 1 and downside.std() > 0 else 0.0
+    )
     peak = equity.cummax()
-    drawdown = (equity / peak - 1)
-    max_dd = float(drawdown.min())
+    max_dd = float((equity / peak - 1).min())
     return {
         "total_return": total_return,
         "cagr": cagr,
@@ -78,81 +87,71 @@ def backtest(
     symbol: str,
     period: str = "2y",
     cost_bps: float = 5.0,
-    refit_every: int = 21,
-    threshold: float = PROB_THRESHOLD,
+    threshold: Optional[float] = None,
+    start_fraction: float = 0.6,
 ) -> Dict[str, Any]:
-    """Out-of-sample walk-forward backtest of the directional signal.
+    """Long/flat walk-forward backtest of the 5-session directional signal.
 
-    On every rebalance the classifier is refitted only on data available up to
-    that day, so no future information reaches the position sizing. A position is
-    either fully long or flat, and ``cost_bps`` is charged on every change.
-
-    Returns ``{symbol, curve, metrics, strategy, benchmark, trades, ...}``.
+    On each rebalance the classifier is refitted on data up to that day only, and
+    the resulting position is held for ``models.HORIZON`` sessions. Costs are charged
+    whenever the position changes.
     """
-    raw = history(symbol, period=period)
-    df = build_features(raw).dropna()
-    if len(df) < WARMUP + 30:
+    engine = models.AlderMLModels(symbol, period=period)
+    frame = engine.data
+    if len(frame) < 120:
         raise ValueError(f"Not enough history for {symbol} to backtest")
 
-    dates = df.index
-    positions = pd.Series(0.0, index=dates)
-    probabilities = pd.Series(np.nan, index=dates)
+    horizon = models.HORIZON
+    start = int(len(frame) * start_fraction)
+    positions = pd.Series(0.0, index=frame.index)
+    probabilities_series = pd.Series(np.nan, index=frame.index)
 
-    model = None
-    for i in range(WARMUP, len(df) - 1):
-        if model is None or (i - WARMUP) % refit_every == 0:
-            train = df.iloc[:i]
-            model = DecisionTreeClassifier(max_depth=3, random_state=42)
-            model.fit(train[FEATURES], train["Up"])
-        row = df[FEATURES].iloc[[i]]
-        try:
-            probability = float(model.predict_proba(row)[0][-1])
-        except Exception:
-            probability = 0.5
-        probabilities.iloc[i] = probability
-        positions.iloc[i] = 1.0 if probability >= threshold else 0.0
+    classifier = None
+    for i in range(start, len(frame), horizon):
+        if classifier is None or (i - start) % horizon == 0:
+            classifier = engine._fit_strategist(frame.iloc[:i])
+        probabilities = engine._probabilities(classifier, engine._matrix(frame).iloc[[i]])
+        p_up = probabilities.get(1, 0.0)
+        probabilities_series.iloc[i] = p_up
+        call = max(probabilities, key=probabilities.get)
+        go_long = call == 1 and (threshold is None or p_up >= threshold)
+        positions.iloc[i : i + horizon] = 1.0 if go_long else 0.0
 
-    next_returns = df["Returns"].shift(-1)
-    gross = positions * next_returns
+    forward_returns = frame["Close"].pct_change().shift(-1)
+    gross = positions * forward_returns
     traded = positions.diff().abs().fillna(positions.abs())
     costs = traded * (cost_bps / 10_000.0)
     strategy_returns = (gross - costs).dropna()
-    benchmark_returns = next_returns.reindex(strategy_returns.index).fillna(0.0)
+    benchmark_returns = forward_returns.reindex(strategy_returns.index).fillna(0.0)
 
-    strategy_equity = (1 + strategy_returns).cumprod()
-    benchmark_equity = (1 + benchmark_returns).cumprod()
+    curve = pd.DataFrame({
+        "Strategy": (1 + strategy_returns).cumprod(),
+        "Buy & Hold": (1 + benchmark_returns).cumprod(),
+    })
 
-    curve = pd.DataFrame(
-        {
-            "Strategy": strategy_equity,
-            "Buy & Hold": benchmark_equity,
-        }
-    )
-
-    active_days = strategy_returns[positions.reindex(strategy_returns.index) > 0]
-    hit_rate = float((active_days > 0).mean() * 100) if len(active_days) else 0.0
+    active = strategy_returns[positions.reindex(strategy_returns.index) > 0]
     metrics = {
-        "strategy": _annualise(strategy_returns),
-        "benchmark": _annualise(benchmark_returns),
-        "hit_rate": hit_rate,
+        "strategy": _metrics(strategy_returns),
+        "benchmark": _metrics(benchmark_returns),
+        "hit_rate": float((active > 0).mean() * 100) if len(active) else 0.0,
         "exposure": float((positions.reindex(strategy_returns.index) > 0).mean() * 100),
         "trades": int(traded.sum()),
         "cost_bps": cost_bps,
         "days": int(len(strategy_returns)),
-        "threshold": threshold * 100,
+        "threshold": (threshold or 0.0) * 100,
+        "horizon": horizon,
     }
     metrics["excess_return"] = (
         metrics["strategy"]["total_return"] - metrics["benchmark"]["total_return"]
     ) * 100
 
     return {
-        "symbol": symbol.upper(),
+        "symbol": engine.ticker,
         "curve": curve,
         "metrics": metrics,
         "positions": positions,
-        "probabilities": probabilities,
-        "frame": df,
-        "last_price": float(df["Close"].iloc[-1]),
+        "probabilities": probabilities_series,
+        "frame": frame,
     }
 
 
@@ -160,7 +159,6 @@ def backtest(
 # Portfolio analytics
 # --------------------------------------------------------------------------- #
 def holdings_frame(holdings: Dict[str, float], quote_lookup) -> pd.DataFrame:
-    """Value a holdings dict. ``quote_lookup(symbol) -> dict`` supplies prices."""
     rows: List[Dict[str, Any]] = []
     for symbol, shares in (holdings or {}).items():
         try:
@@ -177,19 +175,13 @@ def holdings_frame(holdings: Dict[str, float], quote_lookup) -> pd.DataFrame:
 
 
 def concentration(frame: pd.DataFrame) -> Dict[str, float]:
-    """Herfindahl-based concentration plus largest-position weight."""
     if frame is None or frame.empty or frame["Value"].sum() <= 0:
         return {"hhi": 0.0, "largest": 0.0, "positions": 0}
     weights = (frame["Value"] / frame["Value"].sum()).values
-    return {
-        "hhi": float((weights**2).sum()),
-        "largest": float(weights.max() * 100),
-        "positions": int(len(frame)),
-    }
+    return {"hhi": float((weights**2).sum()), "largest": float(weights.max() * 100), "positions": int(len(frame))}
 
 
 def portfolio_volatility(symbols: List[str], period: str = "1y") -> Optional[pd.DataFrame]:
-    """Daily returns matrix for the held symbols (for correlation / volatility)."""
     series = {}
     for symbol in symbols or []:
         try:
@@ -202,63 +194,47 @@ def portfolio_volatility(symbols: List[str], period: str = "1y") -> Optional[pd.
 
 
 # --------------------------------------------------------------------------- #
-# Model scoring (chronological hold-out)
+# Model scoring used by the UI (cached, lighter walk-forward)
 # --------------------------------------------------------------------------- #
-def evaluate_models(symbol: str, period: str = "2y", test_fraction: float = 0.2) -> Dict[str, Any]:
-    """Score the three models on the most recent slice of data (never shuffled)."""
-    df = build_features(history(symbol, period=period)).dropna()
-    if len(df) < 120:
-        raise ValueError(f"Not enough history for {symbol}")
+def evaluate_models(symbol: str, use_cache: bool = True) -> Dict[str, Any]:
+    """Walk-forward scores for the three models, mapped for the UI."""
+    symbol = symbol.upper()
+    if use_cache:
+        cached = _read_cache(symbol)
+        if cached:
+            return cached
 
-    split = int(len(df) * (1 - test_fraction))
-    train, test = df.iloc[:split], df.iloc[split:]
+    scores = models.evaluate(symbol, refit_every=10, start_fraction=0.7)
+    engine = models.AlderMLModels(symbol)
+    signal = engine.train_strategist()
 
-    # Researcher — next-day close
-    researcher = RandomForestRegressor(n_estimators=100, random_state=42)
-    researcher.fit(train[["Close", "Vol", "MA5", "MA20"]], train["Target"])
-    pred_price = researcher.predict(test[["Close", "Vol", "MA5", "MA20"]])
-    mae = float(mean_absolute_error(test["Target"], pred_price))
-    rmse = float(mean_squared_error(test["Target"], pred_price) ** 0.5)
-    mean_price = float(test["Target"].mean())
-    inverse_error = max(0.0, (1 - mae / mean_price) * 100) if mean_price else 0.0
-
-    # Risk — expected absolute return
-    risk_model = LinearRegression()
-    risk_model.fit(train[["Vol", "Returns"]], train["Returns"].abs())
-    risk_pred = risk_model.predict(test[["Vol", "Returns"]])
-    r2 = float(r2_score(test["Returns"].abs(), risk_pred))
-    current_risk = float(risk_model.predict(df[["Vol", "Returns"]].tail(1))[0])
-
-    # Strategist — direction
-    signal = np.where((df["Target"] > df["Close"]) & (df["Vol"] < df["Vol"].median()), 1,
-                      np.where(df["Target"] < df["Close"], -1, 0))
-    train_signal = signal[:split]
-    test_signal = signal[split:]
-    strategist = DecisionTreeClassifier(max_depth=3, random_state=42)
-    strategist.fit(train[["Returns", "Vol"]], train_signal)
-    signal_pred = strategist.predict(test[["Returns", "Vol"]])
-    accuracy = float(accuracy_score(test_signal, signal_pred) * 100)
-    f1 = float(f1_score(test_signal, signal_pred, average="weighted", zero_division=0) * 100)
-    current_signal = int(strategist.predict(df[["Returns", "Vol"]].tail(1))[0])
-
-    predicted_next = float(researcher.predict(df[["Close", "Vol", "MA5", "MA20"]].tail(1))[0])
-
-    return {
-        "symbol": symbol.upper(),
-        "rows": int(len(df)),
-        "test_rows": int(len(test)),
+    payload = {
+        "symbol": symbol,
+        "horizon": scores["horizon"],
+        "rows": scores["rows"],
+        "test_rows": scores["test_rows"],
+        "refits": scores["refits"],
         "researcher": {
-            "mae": mae,
-            "rmse": rmse,
-            "inverse_error": inverse_error,
-            "predicted_next": predicted_next,
-            "last_close": float(df["Close"].iloc[-1]),
+            "mae": scores["researcher"]["price_mae"],
+            "rmse": scores["researcher"]["price_rmse"],
+            "mae_bps": scores["researcher"]["mae_bps"],
+            "r2": scores["researcher"]["r2"],
+            "hit_rate": scores["researcher"]["hit_rate"],
         },
-        "risk": {"r2": r2, "current": current_risk},
+        "risk": {
+            "r2": scores["risk"]["r2"],
+            "mae_bps": scores["risk"]["mae_bps"],
+            "current": engine.train_risk_manager(),
+        },
         "strategist": {
-            "accuracy": accuracy,
-            "f1": f1,
-            "current": current_signal,
-            "label": {1: "BUY", 0: "HOLD", -1: "SELL"}.get(current_signal, "HOLD"),
+            "accuracy": scores["strategist"]["accuracy"],
+            "f1": scores["strategist"]["f1"],
+            "updown_accuracy": scores["strategist"]["updown_accuracy"],
+            "always_up": scores["strategist"]["always_up"],
+            "current": signal,
+            "label": {1: "BUY", 0: "HOLD", -1: "SELL"}.get(signal, "HOLD"),
         },
     }
+    if use_cache:
+        _write_cache(symbol, payload)
+    return payload

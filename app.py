@@ -9,7 +9,6 @@ import streamlit as st
 import analytics
 import database as db
 import market_data as md
-import talent
 import ui
 from agents import ManagerAgent, ResearcherAgent, RiskAgent, StrategistAgent
 from models import AlderMLModels
@@ -38,40 +37,22 @@ SIGNAL_TONE = {"BUY": "up", "SELL": "down", "HOLD": "warn"}
 # Authentication
 # --------------------------------------------------------------------------- #
 def auth_screen() -> None:
-    left, right = st.columns([1.15, 1], gap="large")
-    with left:
+    """Single-purpose sign-in: the wordmark and the access box, nothing else."""
+    st.markdown('<div style="height:9vh"></div>', unsafe_allow_html=True)
+    middle = st.columns([1, 1.05, 1])[1]
+    with middle:
         st.markdown(
-            f"""
-            <div style="padding-top:3.2rem">
-              <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:1.6rem">
-                <div class="brand-mark" style="width:38px;height:38px;font-size:16px">A</div>
-                <div style="font-size:13px;letter-spacing:.22em;font-weight:600;color:#A5B4FC">ALDER</div>
-              </div>
-              <div style="font-size:2.35rem;font-weight:700;line-height:1.15;letter-spacing:-.03em">
-                Research desk for<br>systematic equity strategies.
-              </div>
-              <div style="color:#8B98B0;font-size:14.5px;line-height:1.6;margin-top:1rem;max-width:30rem">
-                Four cooperating agents — research, risk, strategy and allocation — run a
-                local ML pipeline over live market data, evaluate it on a walk-forward
-                backtest, and execute into a simulated portfolio.
-              </div>
-              <div style="display:flex;gap:.5rem;margin-top:1.5rem;flex-wrap:wrap">
-                {ui.pill('7,400+ listed tickers', 'accent')}
-                {ui.pill('3 local models', 'neutral')}
-                {ui.pill('Walk-forward backtest', 'neutral')}
-                {ui.pill('Talent radar', 'neutral')}
-              </div>
+            """
+            <div style="display:flex;flex-direction:column;align-items:center;gap:.85rem;margin-bottom:1.8rem">
+              <div class="brand-mark" style="width:46px;height:46px;font-size:18px">A</div>
+              <div style="font-size:15px;letter-spacing:.34em;font-weight:600;color:#F5F5F5">ALDER</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-    with right:
-        st.markdown('<div style="height:1.2rem"></div>', unsafe_allow_html=True)
         with st.container(border=True):
             mode = st.radio("Access", ["Sign in", "Create account"], horizontal=True, label_visibility="collapsed")
             if mode == "Sign in":
-                st.markdown("##### Welcome back")
                 with st.form("login"):
                     username = st.text_input("Username", placeholder="amogh")
                     password = st.text_input("Password", type="password", placeholder="••••")
@@ -85,9 +66,7 @@ def auth_screen() -> None:
                         st.rerun()
                     else:
                         st.error("Invalid credentials.")
-                st.caption("Demo account — `amogh` / `abc`")
             else:
-                st.markdown("##### Create your account")
                 with st.form("register"):
                     new_user = st.text_input("Username")
                     new_email = st.text_input("Email")
@@ -96,8 +75,6 @@ def auth_screen() -> None:
                 if register:
                     ok, message = db.create_user(new_user, new_email, new_password)
                     (st.success if ok else st.error)(message)
-                    if ok:
-                        st.caption("You can sign in now.")
 
 
 for key, default in (
@@ -105,7 +82,6 @@ for key, default in (
     ("user_id", None),
     ("username", None),
     ("pipeline", None),
-    ("scan", None),
 ):
     st.session_state.setdefault(key, default)
 
@@ -131,18 +107,14 @@ def cached_quote(symbol: str) -> dict:
 
 
 @st.cache_data(show_spinner=False, ttl=1800)
-def cached_backtest(symbol: str, cost_bps: float, threshold: float) -> dict:
-    return analytics.backtest(symbol, period="2y", cost_bps=cost_bps, threshold=threshold)
+def cached_backtest(symbol: str, cost_bps: float) -> dict:
+    return analytics.backtest(symbol, period="2y", cost_bps=cost_bps)
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def cached_models(symbol: str) -> dict:
     return analytics.evaluate_models(symbol)
 
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def cached_talent(pages: int) -> dict:
-    return talent.scan(pages=pages)
 
 
 def price_chart(symbol: str, period: str = "6mo", candles: bool = True) -> None:
@@ -161,12 +133,12 @@ def price_chart(symbol: str, period: str = "6mo", candles: bool = True) -> None:
             go.Scatter(
                 x=frame.index, y=frame["Close"], mode="lines", name=symbol,
                 line=dict(color=ui.ACCENT, width=2),
-                fill="tozeroy", fillcolor="rgba(99,102,241,0.08)",
+                fill="tozeroy", fillcolor="rgba(212,175,55,0.07)",
             )
         )
     frame["MA20"] = frame["Close"].rolling(20).mean()
     frame["MA50"] = frame["Close"].rolling(50).mean()
-    for column, colour in (("MA20", "#38BDF8"), ("MA50", "#F59E0B")):
+    for column, colour in (("MA20", "#D4AF37"), ("MA50", "#7A7A7A")):
         figure.add_trace(
             go.Scatter(x=frame.index, y=frame[column], mode="lines", name=column,
                        line=dict(color=colour, width=1.3))
@@ -242,10 +214,10 @@ def page_dashboard() -> None:
         {"label": "Last price", "value": money(result["price"]),
          "delta": f"{change:+.2f}% vs prior close",
          "delta_tone": "up" if change >= 0 else "down"},
-        {"label": "Predicted next close", "value": money(result["researcher"]["value"]),
+        {"label": "Price target · 5 sessions", "value": money(result["researcher"]["value"]),
          "tone": "up"},
-        {"label": "Volatility score", "value": f"{result['risk']['value']:.4f}",
-         "delta": "expected |daily return|", "tone": "warn"},
+        {"label": "Volatility · 5 sessions", "value": f"{result['risk']['value']:.2%}",
+         "delta": "forecast realised σ", "tone": "warn"},
         {"label": "Signal", "value": signal,
          "tone": SIGNAL_TONE.get(signal, "flat")},
         {"label": "Suggested allocation", "value": result["manager"]["value"],
@@ -469,12 +441,17 @@ def page_strategy() -> None:
 
 
 def page_portfolio() -> None:
-    ui.page_header("Portfolio", "Allocation, exposure and performance of the simulated book.")
+    ui.page_header("Portfolio", "Allocation, trade history and how the book has changed over time.")
     holdings = portfolio.get("holdings") or {}
     frame = analytics.holdings_frame(holdings, cached_quote)
     cash = float(portfolio["balance"])
     invested = float(frame["Value"].sum()) if not frame.empty else 0.0
     total = cash + invested
+
+    try:
+        db.snapshot_portfolio(st.session_state.user_id, total, cash)
+    except db.DatabaseError:
+        pass
 
     ui.kpis([
         {"label": "Total AUM", "value": money(total)},
@@ -483,33 +460,84 @@ def page_portfolio() -> None:
         {"label": "Positions", "value": str(len(frame)), "tone": "flat"},
     ])
 
+    ui.section("Portfolio value")
+    with st.container(border=True):
+        try:
+            history = db.portfolio_history(st.session_state.user_id)
+        except db.DatabaseError:
+            history = []
+        if len(history) >= 2:
+            curve = pd.DataFrame(history)
+            curve["snapshot_date"] = pd.to_datetime(curve["snapshot_date"])
+            figure = go.Figure()
+            figure.add_trace(go.Scatter(
+                x=curve["snapshot_date"], y=curve["total_value"], mode="lines+markers",
+                name="Portfolio value", line=dict(color=ui.ACCENT, width=2.2),
+                fill="tozeroy", fillcolor="rgba(212,175,55,0.08)",
+            ))
+            ui.chart(figure, height=320)
+            change = curve["total_value"].iloc[-1] - curve["total_value"].iloc[0]
+            tone = ui.tone_for(change)
+            st.caption(
+                f"{len(curve)} daily valuations · since the first snapshot "
+                f"the book is {money(change)} ({change / curve['total_value'].iloc[0] * 100:+.2f}%) "
+                f"{'higher' if change >= 0 else 'lower'}."
+            )
+        else:
+            st.caption("Your valuation history starts today — one snapshot is recorded per day, so the curve appears after the second session.")
+
     if frame.empty:
         ui.empty_state("Portfolio is empty", "Head to the trade desk to open your first position — you start with $100,000 of simulated cash.")
-        return
+    else:
+        left, right = st.columns([1.4, 1], gap="large")
+        with left, st.container(border=True):
+            st.markdown("**Holdings**")
+            st.dataframe(
+                frame, width="stretch", hide_index=True,
+                column_config={
+                    "Price": st.column_config.NumberColumn(format="$%.2f"),
+                    "Value": st.column_config.NumberColumn(format="$%.2f"),
+                    "Weight": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%"),
+                },
+            )
+        with right, st.container(border=True):
+            st.markdown("**Allocation**")
+            donut = go.Figure(
+                go.Pie(labels=frame["Symbol"], values=frame["Value"], hole=0.62,
+                       marker=dict(colors=["#D4AF37", "#E3CB86", "#B8912B", "#8C8C8C", "#5C5C5C", "#F0DFA8", "#3A3A3A"]))
+            )
+            donut.update_traces(textinfo="percent", textfont_size=11)
+            ui.chart(donut, height=300)
 
-    left, right = st.columns([1.4, 1], gap="large")
-    with left, st.container(border=True):
-        st.markdown("**Holdings**")
-        st.dataframe(
-            frame, width="stretch", hide_index=True,
-            column_config={
-                "Price": st.column_config.NumberColumn(format="$%.2f"),
-                "Value": st.column_config.NumberColumn(format="$%.2f"),
-                "Weight": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%"),
-            },
-        )
-    with right, st.container(border=True):
-        st.markdown("**Allocation**")
-        donut = go.Figure(
-            go.Pie(labels=frame["Symbol"], values=frame["Value"], hole=0.62,
-                   marker=dict(colors=["#6366F1", "#0EA5E9", "#14B8A6", "#F59E0B", "#EC4899", "#8B5CF6", "#22C55E"]))
-        )
-        donut.update_traces(textinfo="percent", textfont_size=11)
-        ui.chart(donut, height=300)
-
-    ui.section("Portfolio narrative")
+    ui.section("Trade history")
     with st.container(border=True):
-        ui.prose(build_narrative(frame, cash, total))
+        try:
+            trades = db.trade_history(st.session_state.user_id, limit=200)
+        except db.DatabaseError:
+            trades = []
+        if trades:
+            log = pd.DataFrame(trades)
+            log["value"] = log["value"].astype(float)
+            log = log.rename(columns={
+                "created_at": "Executed", "symbol": "Symbol", "side": "Side",
+                "shares": "Shares", "price": "Price", "value": "Notional",
+            })[["Executed", "Symbol", "Side", "Shares", "Price", "Notional"]]
+            st.dataframe(
+                log, width="stretch", hide_index=True,
+                column_config={
+                    "Price": st.column_config.NumberColumn(format="$%.2f"),
+                    "Notional": st.column_config.NumberColumn(format="$%.2f"),
+                    "Shares": st.column_config.NumberColumn(format="%.0f"),
+                },
+            )
+            st.caption(f"{len(log)} fills recorded.")
+        else:
+            st.caption("No fills yet — executed orders are stamped with their date and time here.")
+
+    if not frame.empty:
+        ui.section("Portfolio narrative")
+        with st.container(border=True):
+            ui.prose(build_narrative(frame, cash, total))
 
     if st.session_state.pipeline:
         with st.container(border=True):
@@ -538,6 +566,20 @@ def build_narrative(frame: pd.DataFrame, cash: float, total: float) -> str:
         "- Re-run the pipeline and the strategy lab after the next earnings window.",
     ]
     return "\n".join(lines)
+
+
+def _log_fill(symbol: str, side: str, shares: float, price: float) -> None:
+    """Persist the fill and refresh the day's valuation; never break a trade over it."""
+    book = st.session_state.portfolio
+    try:
+        frame = analytics.holdings_frame(book.get("holdings") or {}, cached_quote)
+        invested = float(frame["Value"].sum()) if not frame.empty else 0.0
+        db.record_trade(
+            st.session_state.user_id, symbol, side, shares, price,
+            invested + float(book["balance"]), float(book["balance"]),
+        )
+    except (db.DatabaseError, Exception):
+        pass
 
 
 def page_trade() -> None:
@@ -573,6 +615,7 @@ def page_trade() -> None:
                         book["balance"] -= cost
                         book["holdings"][symbol] = book["holdings"].get(symbol, 0) + shares
                         db.save_portfolio(st.session_state.user_id, book["balance"], book["holdings"])
+                        _log_fill(symbol, "BUY", shares, price)
                         st.success(f"Filled: bought {shares} {symbol} at {money(price)}")
                         st.rerun()
                     else:
@@ -585,6 +628,7 @@ def page_trade() -> None:
                         if book["holdings"][symbol] == 0:
                             del book["holdings"][symbol]
                         db.save_portfolio(st.session_state.user_id, book["balance"], book["holdings"])
+                        _log_fill(symbol, "SELL", shares, price)
                         st.success(f"Filled: sold {shares} {symbol} at {money(price)}")
                         st.rerun()
                     else:
@@ -615,20 +659,19 @@ def page_lab() -> None:
     )
 
     with st.container(border=True):
-        col_symbol, col_cost, col_threshold, col_run = st.columns([2, 1, 1, 1], vertical_alignment="bottom")
+        col_symbol, col_cost, col_run = st.columns([2, 1, 1], vertical_alignment="bottom")
         with col_symbol:
             symbol = ui.ticker_picker("Security", "lab", default="MSFT")
         with col_cost:
             cost_bps = st.number_input("Cost (bps)", min_value=0.0, max_value=50.0, value=5.0, step=1.0)
-        with col_threshold:
-            threshold = st.slider("Probability threshold", 0.50, 0.75, 0.55, 0.01)
         with col_run:
             run = st.button("Run backtest", type="primary", width="stretch")
+        st.caption("The book is long for five sessions whenever the strategist calls BUY, flat otherwise.")
 
     if run and symbol:
         try:
             with st.spinner("Replaying history out-of-sample…"):
-                st.session_state.backtest = cached_backtest(symbol.upper(), float(cost_bps), float(threshold))
+                st.session_state.backtest = cached_backtest(symbol.upper(), float(cost_bps))
         except Exception as exc:
             st.error(f"Backtest failed: {exc}")
 
@@ -667,7 +710,7 @@ def page_lab() -> None:
         figure.add_trace(go.Scatter(x=curve.index, y=curve["Strategy"], name="Strategy",
                                     line=dict(color=ui.ACCENT, width=2.2)))
         figure.add_trace(go.Scatter(x=curve.index, y=curve["Buy & Hold"], name="Buy & hold",
-                                    line=dict(color="#64748B", width=1.6, dash="dot")))
+                                    line=dict(color="#8C8C8C", width=1.6, dash="dot")))
         ui.chart(figure, height=380)
 
     ui.section("Metrics")
@@ -689,112 +732,28 @@ def page_lab() -> None:
             })
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
-    ui.section("Model scores (chronological hold-out)")
+    ui.section("Model scores · walk-forward")
     try:
         scores = cached_models(result["symbol"])
+        strategist, researcher, risk = scores["strategist"], scores["researcher"], scores["risk"]
         ui.kpis([
-            {"label": "Price MAE", "value": f"${scores['researcher']['mae']:.2f}",
-             "delta": f"RMSE ${scores['researcher']['rmse']:.2f}", "tone": "flat"},
-            {"label": "Risk R²", "value": f"{scores['risk']['r2']:.2f}", "tone": "flat"},
-            {"label": "Direction accuracy", "value": f"{scores['strategist']['accuracy']:.1f}%",
-             "delta": f"F1 {scores['strategist']['f1']:.1f}%", "tone": "warn"},
-            {"label": "Train / test rows", "value": f"{scores['rows']}",
-             "delta": f"{scores['test_rows']} held out", "tone": "flat"},
+            {"label": f"Return error · {scores['horizon']}d", "value": f"{researcher['mae_bps']:.0f} bps",
+             "delta": f"≈ ${researcher['mae']:.2f} per share", "tone": "flat"},
+            {"label": "Return R²", "value": f"{researcher['r2']:+.3f}",
+             "delta": f"sign hit {researcher['hit_rate']:.0f}%", "tone": "flat"},
+            {"label": "Volatility R²", "value": f"{risk['r2']:+.3f}",
+             "delta": f"MAE {risk['mae_bps']:.0f} bps", "tone": "flat"},
+            {"label": "Direction accuracy", "value": f"{strategist['updown_accuracy']:.1f}%",
+             "delta": f"always-up baseline {strategist['always_up']:.1f}%", "tone": "warn"},
         ])
         st.caption(
-            "A ~50% directional accuracy is a coin flip: the pipeline is a research instrument, "
-            "not a tradeable edge. The backtest above is the honest test of whether it survives costs."
+            f"Scored on {scores['test_rows']} out-of-sample windows with {scores['refits']} chronological refits. "
+            "Direction is judged against the naive always-up baseline, not just against 50%: on a rising market a "
+            "coin flip already clears 50%. Returns carry almost no R² — that is expected, and why the backtest, "
+            "not the classifier's accuracy, is the test that matters."
         )
     except Exception as exc:
         st.caption(f"Model scoring unavailable: {exc}")
-
-
-def page_talent() -> None:
-    ui.page_header(
-        "Talent radar",
-        "Scan live software-engineering internship postings and rank the skills they demand.",
-        meta=["Sources: Arbeitnow + Remotive (keyless APIs)"],
-    )
-
-    with st.container(border=True):
-        col_pages, col_button = st.columns([3, 1], vertical_alignment="bottom")
-        with col_pages:
-            pages = st.slider("Pages to scan", 2, 20, 10,
-                              help="Each Arbeitnow page holds up to 300 live postings.")
-        with col_button:
-            scan_now = st.button("Scan postings", type="primary", width="stretch")
-
-    if scan_now:
-        with st.spinner("Fetching and mining postings…"):
-            st.session_state.talent = cached_talent(int(pages))
-
-    data = st.session_state.get("talent")
-    if not data:
-        ui.empty_state("No scan yet", "Scan the boards to build a demand profile of the skills SWE internships ask for.")
-        return
-
-    postings = data["postings"]
-    skills = data["skills"]
-    if postings is None or postings.empty or skills.empty:
-        st.warning("No postings matched. Try scanning more pages.")
-        return
-
-    top_skill = skills.iloc[0]
-    ui.kpis([
-        {"label": "Postings analysed", "value": str(len(postings)), "delta": f"fetched {data['fetched_at']}"},
-        {"label": "Internships", "value": str(int(postings["is_internship"].sum())) if "is_internship" in postings else "—", "tone": "flat"},
-        {"label": "Skills detected", "value": str(len(skills)), "tone": "flat"},
-        {"label": "Most demanded", "value": top_skill["skill"],
-         "delta": f"{top_skill['share']:.0f}% of postings", "tone": "up"},
-    ])
-    st.caption(
-        "Live sources: " + ", ".join(data.get("sources") or ["none"]) +
-        " · skills are mined from posting text against a 46-term taxonomy"
-    )
-
-    left, right = st.columns([1.15, 1], gap="large")
-    with left, st.container(border=True):
-        st.markdown("**Skill demand**")
-        top = skills.head(14).iloc[::-1]
-        bar = go.Figure(go.Bar(
-            x=top["share"], y=top["skill"], orientation="h",
-            marker_color=ui.ACCENT, text=[f"{v:.0f}%" for v in top["share"]],
-            textposition="outside",
-        ))
-        ui.chart(bar, height=420)
-
-    with right, st.container(border=True):
-        st.markdown("**Your profile vs. demand**")
-        mine = st.text_area(
-            "Your skills (comma separated)",
-            value=st.session_state.get("my_skills", "Python, SQL, Pandas, scikit-learn, Git, Docker, AWS"),
-            height=90,
-        )
-        st.session_state.my_skills = mine
-        gap = talent.gap_analysis(skills, [s for s in mine.split(",")])
-        st.metric("Coverage of top skills", f"{gap['coverage']:.0f}%")
-        if gap["missing"]:
-            st.markdown("Missing: " + " ".join(ui.pill(s, "warn") for s in gap["missing"][:6]), unsafe_allow_html=True)
-        if not gap["rows"].empty:
-            st.dataframe(gap["rows"], width="stretch", hide_index=True, height=250)
-
-    ui.section("Postings")
-    with st.container(border=True):
-        display = postings.copy()
-        if "skills" in display:
-            display["skills"] = display["skills"].apply(lambda s: ", ".join(s[:5]) if isinstance(s, list) else s)
-        columns = [c for c in ["title", "company", "location", "skills", "source", "url"] if c in display]
-        st.dataframe(
-            display[columns], width="stretch", hide_index=True, height=320,
-            column_config={
-                "title": st.column_config.TextColumn("Role", width="medium"),
-                "company": st.column_config.TextColumn("Company", width="small"),
-                "location": st.column_config.TextColumn("Location", width="small"),
-                "skills": st.column_config.TextColumn("Skills", width="medium"),
-                "source": st.column_config.TextColumn("Source", width="small"),
-                "url": st.column_config.LinkColumn("Posting", display_text="Open"),
-            },
-        )
 
 
 PAGES = {
@@ -805,13 +764,18 @@ PAGES = {
     "Portfolio": page_portfolio,
     "Trade Desk": page_trade,
     "Strategy Lab": page_lab,
-    "Talent Radar": page_talent,
 }
 
-page = ui.sidebar("Research terminal", st.session_state.username, "Authorized session")
-if st.sidebar.button("Sign out", width="stretch"):
-    for key in ("authenticated", "user_id", "username", "portfolio", "pipeline", "scan", "backtest"):
+def _sign_out() -> None:
+    for key in ("authenticated", "user_id", "username", "portfolio", "pipeline", "scan",
+                "backtest", "research_note", "current_symbol"):
         st.session_state.pop(key, None)
     st.rerun()
+
+
+page = ui.sidebar("Research terminal", st.session_state.username, "Authorized session")
+signed_out = st.sidebar.button("Sign out", width="stretch", key="sidebar_signout")
+if ui.topbar(st.session_state.username, f"{page} · authorized session") or signed_out:
+    _sign_out()
 
 PAGES.get(page, page_dashboard)()

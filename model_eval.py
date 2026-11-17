@@ -1,75 +1,58 @@
-import yfinance as yf
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, mean_squared_error, accuracy_score, f1_score, r2_score
+"""Walk-forward evaluation CLI for the ALDER models.
 
-def evaluate_alder_models(ticker="NVDA"):
-    print(f"--- Evaluating Alder ML Models for {ticker} ---")
+Usage:
+    python model_eval.py            # default basket
+    python model_eval.py NVDA AAPL
 
-    # 1. Data Preparation
-    df = yf.download(ticker, period="2y", interval="1d")
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
+Every score is produced chronologically: the models are refit on past bars only and
+then asked to predict the next five sessions. Naive baselines are printed next to the
+model so a reader can see whether the model actually beats a rule of thumb.
+"""
 
-    df['Returns'] = df['Close'].pct_change()
-    df['Vol'] = df['Close'].rolling(window=5).std()
-    df['MA5'] = df['Close'].rolling(window=5).mean()
-    df['MA20'] = df['Close'].rolling(window=20).mean()
-    df['Target'] = df['Close'].shift(-1)
+from __future__ import annotations
 
-    # Signal target for Strategist
-    df['Signal'] = np.where((df['Target'] > df['Close']) & (df['Vol'] < df['Vol'].median()), 1,
-                            np.where(df['Target'] < df['Close'], -1, 0))
+import sys
+import warnings
 
-    df = df.dropna()
+warnings.filterwarnings("ignore")
 
-    # --- MODEL 1: Researcher (Price Prediction) ---
-    X_res = df[['Close', 'Vol', 'MA5', 'MA20']]
-    y_res = df['Target']
-    X_train, X_test, y_train, y_test = train_test_split(X_res, y_res, test_size=0.2, shuffle=False)
+import models
 
-    res_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    res_model.fit(X_train, y_train)
-    res_preds = res_model.predict(X_test)
-    res_mae = mean_absolute_error(y_test, res_preds)
-    res_rmse = np.sqrt(mean_squared_error(y_test, res_preds))
+DEFAULT = ["NVDA", "AAPL", "MSFT"]
 
-    # --- MODEL 2: Risk Manager (Volatility Prediction) ---
-    X_risk = df[['Vol', 'Returns']]
-    y_risk = df['Returns'].abs()
-    X_train_r, X_test_r, y_train_r, y_test_r = train_test_split(X_risk, y_risk, test_size=0.2, shuffle=False)
 
-    risk_model = LinearRegression()
-    risk_model.fit(X_train_r, y_train_r)
-    risk_preds = risk_model.predict(X_test_r)
-    risk_r2 = r2_score(y_test_r, risk_preds)
+def main(symbols: list[str]) -> int:
+    header = (
+        f"{'ticker':<7}{'OOS':>5}{'retMAE':>9}{'retR2':>8}{'priceMAE':>10}"
+        f"{'volR2':>8}{'up/dn':>7}{'naive':>7}{'hit':>7}"
+    )
+    print(header)
+    print("-" * len(header))
 
-    # --- MODEL 3: Strategist (Signal Classification) ---
-    X_strat = df[['Returns', 'Vol']]
-    y_strat = df['Signal']
-    X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X_strat, y_strat, test_size=0.2, shuffle=False)
+    rows = []
+    for symbol in symbols:
+        try:
+            result = models.evaluate(symbol)
+        except Exception as exc:  # pragma: no cover - network dependent
+            print(f"{symbol:<7} failed: {exc}")
+            continue
+        researcher, risk, strategist = result["researcher"], result["risk"], result["strategist"]
+        print(
+            f"{symbol:<7}{result['test_rows']:>5}{researcher['mae_bps']:>8.0f}b"
+            f"{researcher['r2']:>8.3f}{researcher['price_mae']:>9.2f}"
+            f"{risk['r2']:>8.3f}{strategist['updown_accuracy']:>6.1f}%"
+            f"{strategist['always_up']:>6.1f}%{researcher['hit_rate']:>6.1f}%"
+        )
+        rows.append((symbol, strategist["updown_accuracy"], strategist["always_up"]))
 
-    strat_model = DecisionTreeClassifier(max_depth=3, random_state=42)
-    strat_model.fit(X_train_s, y_train_s)
-    strat_preds = strat_model.predict(X_test_s)
-    strat_acc = accuracy_score(y_test_s, strat_preds)
-    strat_f1 = f1_score(y_test_s, strat_preds, average='weighted')
+    if rows:
+        edge = sum(up - naive for _, up, naive in rows) / len(rows)
+        print(f"\nMean directional accuracy {sum(up for _, up, _ in rows) / len(rows):.1f}% "
+              f"vs always-up {sum(naive for _, _, naive in rows) / len(rows):.1f}% "
+              f"(edge {edge:+.1f} pp)")
+        print("Return R² near zero is expected: daily-to-weekly equity returns are mostly noise.")
+    return 0
 
-    print(f"\n[Researcher - Price Prediction]")
-    print(f"MAE: ${res_mae:.2f}")
-    print(f"RMSE: ${res_rmse:.2f}")
-    print(f"Accuracy: {100 - (res_mae/y_test.mean()*100):.2f}% (Inverse Error)")
-
-    print(f"\n[Risk Manager - Volatility Prediction]")
-    print(f"R2 Score: {risk_r2:.4f}")
-
-    print(f"\n[Strategist - Signal Classification]")
-    print(f"Accuracy: {strat_acc*100:.2f}%")
-    print(f"F1-Score: {strat_f1*100:.2f}%")
 
 if __name__ == "__main__":
-    evaluate_alder_models()
+    raise SystemExit(main(sys.argv[1:] or DEFAULT))

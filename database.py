@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import sqlite3
+from datetime import datetime
 
 try:  # Optional: only needed when a PostgreSQL DATABASE_URL is configured.
     import psycopg2
@@ -132,6 +133,28 @@ def init_db():
                     balance REAL NOT NULL,
                     holdings TEXT NOT NULL,
                     FOREIGN KEY (user_id) REFERENCES users (id)
+                )
+            """)
+            trade_id = "SERIAL PRIMARY KEY" if postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS trades (
+                    id {trade_id},
+                    user_id INTEGER NOT NULL,
+                    symbol TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    shares REAL NOT NULL,
+                    price REAL NOT NULL,
+                    value REAL NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                    user_id INTEGER NOT NULL,
+                    snapshot_date TEXT NOT NULL,
+                    total_value REAL NOT NULL,
+                    cash REAL NOT NULL,
+                    PRIMARY KEY (user_id, snapshot_date)
                 )
             """)
             conn.commit()
@@ -275,6 +298,97 @@ def save_portfolio(user_id, balance, holdings):
             cur.close()
     finally:
         conn.close()
+
+
+# --------------------------------------------------------------------------- #
+# Trade log and portfolio history
+# --------------------------------------------------------------------------- #
+def _timestamp() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def record_trade(user_id, symbol, side, shares, price, total_value, cash):
+    """Append a fill to the trade log and refresh today's portfolio snapshot."""
+    conn, postgres = _connect()
+    try:
+        cur = _cursor(conn, postgres)
+        try:
+            cur.execute(
+                _q(
+                    "INSERT INTO trades (user_id, symbol, side, shares, price, value, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    postgres,
+                ),
+                (user_id, symbol.upper(), side.upper(), float(shares), float(price),
+                 float(shares) * float(price), _timestamp()),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+    snapshot_portfolio(user_id, total_value, cash)
+
+
+def trade_history(user_id, limit: int = 100):
+    conn, postgres = _connect()
+    try:
+        cur = _cursor(conn, postgres, dict_rows=True)
+        try:
+            cur.execute(
+                _q("SELECT * FROM trades WHERE user_id = ? ORDER BY id DESC", postgres),
+                (user_id,),
+            )
+            rows = cur.fetchall() or []
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows][:limit]
+
+
+def snapshot_portfolio(user_id, total_value, cash, snapshot_date=None):
+    """Upsert one portfolio valuation per day."""
+    day = snapshot_date or datetime.now().strftime("%Y-%m-%d")
+    conn, postgres = _connect()
+    try:
+        cur = _cursor(conn, postgres)
+        try:
+            cur.execute(
+                _q(
+                    "INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value, cash) "
+                    "VALUES (?, ?, ?, ?) ON CONFLICT (user_id, snapshot_date) "
+                    "DO UPDATE SET total_value = excluded.total_value, cash = excluded.cash",
+                    postgres,
+                ),
+                (user_id, day, float(total_value), float(cash)),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+
+
+def portfolio_history(user_id, limit: int = 365):
+    conn, postgres = _connect()
+    try:
+        cur = _cursor(conn, postgres, dict_rows=True)
+        try:
+            cur.execute(
+                _q(
+                    "SELECT snapshot_date, total_value, cash FROM portfolio_snapshots "
+                    "WHERE user_id = ? ORDER BY snapshot_date ASC",
+                    postgres,
+                ),
+                (user_id,),
+            )
+            rows = cur.fetchall() or []
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows][-limit:]
 
 
 # Seed the test account

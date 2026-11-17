@@ -17,12 +17,13 @@ import streamlit as st
 
 import market_data
 
-ACCENT = "#6366F1"
-UP = "#10B981"
-DOWN = "#F43F5E"
-WARN = "#F59E0B"
-MUTED = "#8B98B0"
-GRID = "rgba(148,163,184,0.12)"
+ACCENT = "#D4AF37"          # gold
+ACCENT_DEEP = "#8A6D1F"
+UP = "#D4AF37"
+DOWN = "#C9C9C9"
+WARN = "#E3CB86"
+MUTED = "#A1A1A1"
+GRID = "rgba(255,255,255,0.07)"
 
 PAGES: List[tuple] = [
     ("Dashboard", "Command"),
@@ -32,7 +33,6 @@ PAGES: List[tuple] = [
     ("Portfolio", "Capital"),
     ("Trade Desk", "Capital"),
     ("Strategy Lab", "Research"),
-    ("Talent Radar", "Research"),
 ]
 
 
@@ -43,33 +43,39 @@ def inject_theme() -> None:
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 
         :root {
-            --bg: #0A0E17;
-            --surface: #111827;
-            --surface-2: #151D2E;
-            --border: #1F2A44;
-            --text: #E8EDF7;
-            --muted: #8B98B0;
-            --accent: #6366F1;
-            --up: #10B981;
-            --down: #F43F5E;
+            --bg: #000000;
+            --surface: #0D0D0D;
+            --surface-2: #141414;
+            --border: #262626;
+            --text: #F5F5F5;
+            --muted: #A1A1A1;
+            --accent: #D4AF37;
+            --up: #D4AF37;
+            --down: #C9C9C9;
         }
 
         html, body, [class*="css"], .stApp { font-family: 'Inter', -apple-system, system-ui, sans-serif; }
-        .stApp { background: radial-gradient(1100px 600px at 15% -10%, #131B2E 0%, #0A0E17 55%) fixed; color: var(--text); }
-        #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; height: 0; }
+        .stApp { background: radial-gradient(900px 480px at 12% -12%, #14120A 0%, #000000 60%) fixed; color: var(--text); }
+        #MainMenu, footer { visibility: hidden; }
+        header[data-testid="stHeader"] { background: transparent !important; }
+        [data-testid="stSidebarCollapsedControl"] { display: block !important; visibility: visible !important; }
+        [data-testid="stSidebarCollapsedControl"] button {
+            background: #121212 !important; border: 1px solid var(--border) !important;
+            color: var(--accent) !important; border-radius: 10px !important;
+        }
         .block-container { padding: 2.2rem 2.6rem 4rem 2.6rem; max-width: 1500px; }
 
         /* ---------- sidebar ---------- */
         [data-testid="stSidebar"] {
-            background: #0C121F; border-right: 1px solid var(--border);
+            background: #050505; border-right: 1px solid var(--border);
         }
         [data-testid="stSidebar"] > div:first-child { padding-top: 1.4rem; }
         [data-testid="stSidebar"] .block-container { padding: 0; }
         .brand { display:flex; align-items:center; gap:.7rem; padding: 0 .2rem 1.1rem .2rem; }
         .brand-mark {
             width: 34px; height: 34px; border-radius: 10px; display:grid; place-items:center;
-            background: linear-gradient(135deg, #6366F1, #0EA5E9); color:#fff; font-weight:700; font-size:15px;
-            letter-spacing:.5px; box-shadow: 0 6px 18px rgba(99,102,241,.35);
+            background: linear-gradient(135deg, #D4AF37, #8A6D1F); color:#0A0A0A; font-weight:700; font-size:15px;
+            letter-spacing:.5px; box-shadow: 0 6px 18px rgba(212,175,55,.22);
         }
         .brand-text { line-height:1.05; }
         .brand-text b { font-size: 15px; letter-spacing:.14em; }
@@ -78,25 +84,25 @@ def inject_theme() -> None:
 
         [data-testid="stSidebar"] .stButton > button,
         [data-testid="stSidebar"] .stButton > button:focus:not(:active) {
-            background: transparent; border: 1px solid transparent; color: #B9C4D8;
+            background: transparent; border: 1px solid transparent; color: #BDBDBD;
             text-align: left; justify-content: flex-start; border-radius: 9px;
             font-weight: 500; font-size: 13.5px; padding: .5rem .7rem; box-shadow: none;
             width: 100%; transition: all .15s ease;
         }
         [data-testid="stSidebar"] .stButton > button:hover {
-            background: rgba(99,102,241,.12); color: #E8EDF7; border-color: rgba(99,102,241,.35);
+            background: rgba(212,175,55,.10); color: #F5F5F5; border-color: rgba(212,175,55,.35);
         }
         [data-testid="stSidebar"] .stButton > button[kind="primary"] {
-            background: rgba(99,102,241,.18); color: #FFFFFF; border-color: rgba(99,102,241,.55);
+            background: rgba(212,175,55,.16); color: #FFFFFF; border-color: rgba(212,175,55,.55);
             font-weight: 600;
         }
         .sidebar-user {
             margin-top: 1.2rem; padding: .7rem .8rem; border: 1px solid var(--border);
-            border-radius: 12px; background: #0F1626; display:flex; gap:.6rem; align-items:center;
+            border-radius: 12px; background: #0D0D0D; display:flex; gap:.6rem; align-items:center;
         }
         .avatar {
-            width: 30px; height: 30px; border-radius: 50%; background: rgba(99,102,241,.25);
-            color: #C7CCFF; display:grid; place-items:center; font-weight: 600; font-size: 12px;
+            width: 30px; height: 30px; border-radius: 50%; background: rgba(212,175,55,.18);
+            color: #E3CB86; display:grid; place-items:center; font-weight: 600; font-size: 12px;
         }
         .sidebar-user small { color: var(--muted); display:block; font-size: 10.5px; letter-spacing:.06em; }
 
@@ -107,21 +113,22 @@ def inject_theme() -> None:
         .page-head { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem;
             padding-bottom: 1.1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
         .page-meta { color: var(--muted); font-size: 12px; text-align:right; }
-        .section-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #6B7894; margin: 1.6rem 0 .6rem 0; font-weight:600;}
+        .topbar-user { color: var(--muted); font-size: 12px; text-align: right; }
+        .section-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #8C8C8C; margin: 1.6rem 0 .6rem 0; font-weight:600;}
 
         /* ---------- cards ---------- */
         [data-testid="stVerticalBlockBorderWrapper"] {
-            background: linear-gradient(180deg, rgba(20,28,45,.9), rgba(15,21,35,.9));
+            background: linear-gradient(180deg, rgba(18,18,18,.95), rgba(11,11,11,.95));
             border: 1px solid var(--border) !important; border-radius: 16px !important;
         }
         .kpi-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
         .kpi {
-            background: linear-gradient(180deg, #141C2D, #101728); border: 1px solid var(--border);
+            background: linear-gradient(180deg, #131313, #0B0B0B); border: 1px solid var(--border);
             border-radius: 14px; padding: 14px 16px; position: relative; overflow: hidden;
         }
-        .kpi:before { content:''; position:absolute; inset:0 auto 0 0; width:3px; background: var(--accent); opacity:.9; }
+        .kpi:before { content:''; position:absolute; inset:0 auto 0 0; width:2px; background: var(--accent); opacity:.85; }
         .kpi.up:before { background: var(--up); } .kpi.down:before { background: var(--down); }
-        .kpi.warn:before { background: var(--warn); } .kpi.flat:before { background: #3B4A68; }
+        .kpi.warn:before { background: var(--warn); } .kpi.flat:before { background: #3A3A3A; }
         .kpi-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
         .kpi-value { font-family:'JetBrains Mono', ui-monospace, monospace; font-size: 1.5rem; font-weight: 600; margin-top: .45rem; line-height:1.1; }
         .kpi-delta { font-size: 12px; margin-top: .35rem; color: var(--muted); }
@@ -136,31 +143,31 @@ def inject_theme() -> None:
 
         .pill { display:inline-flex; align-items:center; gap:.35rem; padding: 3px 9px; border-radius: 999px;
             font-size: 11px; font-weight: 600; letter-spacing:.04em; border:1px solid transparent; }
-        .pill.neutral { background: rgba(148,163,184,.12); color:#C3CBDD; border-color: rgba(148,163,184,.25); }
-        .pill.up { background: rgba(16,185,129,.12); color:#34D399; border-color: rgba(16,185,129,.3); }
-        .pill.down { background: rgba(244,63,94,.12); color:#FB7185; border-color: rgba(244,63,94,.3); }
-        .pill.warn { background: rgba(245,158,11,.12); color:#FBBF24; border-color: rgba(245,158,11,.3); }
-        .pill.accent { background: rgba(99,102,241,.16); color:#A5B4FC; border-color: rgba(99,102,241,.35); }
+        .pill.neutral { background: rgba(255,255,255,.06); color:#D6D6D6; border-color: rgba(255,255,255,.18); }
+        .pill.up { background: rgba(212,175,55,.14); color:#E3CB86; border-color: rgba(212,175,55,.45); }
+        .pill.down { background: rgba(255,255,255,.05); color:#C9C9C9; border-color: rgba(255,255,255,.22); }
+        .pill.warn { background: rgba(227,203,134,.12); color:#E3CB86; border-color: rgba(227,203,134,.35); }
+        .pill.accent { background: rgba(212,175,55,.16); color:#F0DFA8; border-color: rgba(212,175,55,.45); }
 
-        .empty { border: 1px dashed var(--border); border-radius: 16px; padding: 2.4rem 1.5rem; text-align:center; background: #0E1522; }
+        .empty { border: 1px dashed var(--border); border-radius: 16px; padding: 2.4rem 1.5rem; text-align:center; background: #0A0A0A; }
         .empty b { display:block; font-size: 15px; margin-bottom:.3rem; }
         .empty span { color: var(--muted); font-size: 13px; }
 
         .prose { color:#C9D3E4; font-size: 13.8px; line-height: 1.65; }
-        .prose h4 { margin: 1.1rem 0 .35rem 0; font-size: 13px; letter-spacing:.1em; text-transform:uppercase; color:#A5B4FC; }
+        .prose h4 { margin: 1.1rem 0 .35rem 0; font-size: 13px; letter-spacing:.1em; text-transform:uppercase; color:#D4AF37; }
         .prose p { margin: .25rem 0 .6rem 0; }
         .prose li { margin-left: 1.1rem; }
 
         /* ---------- streamlit controls ---------- */
         .stButton > button {
             border-radius: 10px; font-weight: 600; font-size: 13px; padding: .5rem 1rem;
-            border: 1px solid var(--border); background: #16203300; color: #D5DDEC;
+            border: 1px solid var(--border); background: #121212; color: #E8E8E8;
         }
         .stButton > button[kind="primary"],
         [data-testid="stBaseButton-primaryFormSubmit"],
         [data-testid="stBaseButton-primary"] {
-            background: linear-gradient(135deg, #6366F1, #4F46E5) !important; color:#fff !important;
-            border:none !important; box-shadow: 0 6px 18px rgba(79,70,229,.28);
+            background: linear-gradient(135deg, #E5C55B, #C9A227) !important; color:#0A0A0A !important;
+            border:none !important; box-shadow: 0 6px 18px rgba(212,175,55,.25);
         }
         [data-testid="stBaseButton-primaryFormSubmit"]:hover,
         [data-testid="stBaseButton-primary"]:hover { filter: brightness(1.08); }
@@ -168,12 +175,12 @@ def inject_theme() -> None:
         /* text + number inputs (react-aria in current Streamlit, baseweb in older) */
         .react-aria-TextField > div, .react-aria-ComboBox > div, .react-aria-Select > div,
         div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
-            background: #0F1626 !important; border: 1px solid var(--border) !important;
+            background: #0F0F0F !important; border: 1px solid var(--border) !important;
             border-radius: 10px !important; box-shadow: none !important;
         }
         .react-aria-TextField > div:focus-within, div[data-baseweb="input"] > div:focus-within,
         div[data-baseweb="select"] > div:focus-within {
-            border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(99,102,241,.15) !important;
+            border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(212,175,55,.15) !important;
         }
         .react-aria-TextField input, div[data-baseweb="input"] input, .stTextArea textarea {
             background: transparent !important; color: var(--text) !important; border: none !important;
@@ -182,24 +189,26 @@ def inject_theme() -> None:
         .react-aria-TextField input::placeholder, .stTextArea textarea::placeholder { color: #62708C !important; }
         label, .stSelectbox label, .stTextInput label, .stNumberInput label { color: #9AA7BE !important; font-size: 12px !important; font-weight: 500 !important; }
         [data-testid="stForm"] { border: none !important; background: transparent !important; padding: 0 !important; }
+        .topbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.6rem; }
+        .topbar .who { color:#A1A1A1; font-size:12px; letter-spacing:.06em; }
         [data-testid="stMetricValue"] { font-family:'JetBrains Mono', monospace; }
         /* segmented control: hide the native radio dot, style the chip instead */
         div[role="radiogroup"] { gap: 8px !important; }
         div[role="radiogroup"] label {
-            background: #0F1626; border: 1px solid var(--border); border-radius: 10px;
+            background: #0F0F0F; border: 1px solid var(--border); border-radius: 10px;
             padding: .42rem .85rem; transition: all .15s ease; color: #B9C4D8 !important;
         }
         div[role="radiogroup"] label > div > div:first-child,
         [data-testid="stRadioOption"] > div > div:first-child { display: none !important; }
-        div[role="radiogroup"] label:hover { border-color: rgba(99,102,241,.5); }
+        div[role="radiogroup"] label:hover { border-color: rgba(212,175,55,.45); }
         div[role="radiogroup"] > div[data-selected="true"] label,
         div[role="radiogroup"] label:has(input:checked) {
-            background: rgba(99,102,241,.18) !important; border-color: rgba(99,102,241,.6) !important;
+            background: rgba(212,175,55,.16) !important; border-color: rgba(212,175,55,.55) !important;
             color: #FFFFFF !important;
         }
         div[role="radiogroup"] label p { font-size: 13px !important; margin: 0 !important; }
         .stDataFrame, [data-testid="stTable"] { border-radius: 12px; overflow:hidden; border:1px solid var(--border); }
-        [data-testid="stForm"] { border: 1px solid var(--border); border-radius: 16px; padding: 1.1rem 1.1rem .6rem 1.1rem; background: #0F1626; }
+        [data-testid="stForm"] { border: 1px solid var(--border); border-radius: 16px; padding: 1.1rem 1.1rem .6rem 1.1rem; background: #0F0F0F; }
         div[data-testid="stAlert"] { border-radius: 12px; border: 1px solid var(--border); }
         hr, [data-testid="stDivider"] { border-color: var(--border) !important; }
         .stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid var(--border); }
@@ -299,7 +308,7 @@ def tone_for(value: float) -> str:
 def empty_state(title: str, body: str, icon: str = "◎") -> None:
     _inject(
         f'<div class="empty">'
-        f'<div style="font-size:1.6rem;color:#6366F1;margin-bottom:.4rem">{icon}</div>'
+        f'<div style="font-size:1.6rem;color:var(--accent);margin-bottom:.4rem">{icon}</div>'
         f"<b>{html.escape(title)}</b><span>{html.escape(body)}</span></div>"
     )
 
@@ -395,3 +404,18 @@ def ticker_picker(label: str, key: str, default: str = "NVDA", help_text: str = 
     chosen = st.selectbox("Matching securities", labels, index=index, key=f"{key}_sel",
                           label_visibility="collapsed")
     return chosen.split(" — ")[0].strip()
+
+
+def topbar(user: str, meta: str = "Session active") -> bool:
+    """Thin application bar with the signed-in user and a working Sign out button.
+
+    Returns True when the user asked to sign out. The sidebar keeps its own button
+    too, because the rail can be collapsed.
+    """
+    left, right = st.columns([8, 1.4], vertical_alignment="center")
+    with left:
+        _inject(
+            f'<div class="topbar-user">{html.escape(user)} · {html.escape(meta)}</div>'
+        )
+    with right:
+        return st.button("Sign out", key="topbar_signout", width="stretch")
