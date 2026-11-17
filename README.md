@@ -1,195 +1,183 @@
-# ALDER — Multi-Agent Quantitative Research & Paper-Trading Terminal
+# ALDER: a stock research app that shows its work
 
-ALDER is a Streamlit terminal for systematic equity research. A four-stage pipeline — researcher,
-risk manager, strategist, portfolio manager — runs three locally trained ML models over live market
-data, an independent **walk-forward backtest** asks whether the resulting signal survives transaction
-costs, and orders execute into a **simulated** portfolio that keeps its own trade log and daily
-valuation history.
+ALDER is a web app that studies a stock and guesses what it will do next. It looks at two years of
+daily prices, trains three small machine-learning models on them, and turns the answers into a price
+target, a risk number, and a BUY / HOLD / SELL signal. You can then "buy" and "sell" with fake money
+and watch your portfolio change over time.
 
-It is a research and engineering showcase, not a trading system: fills happen at the latest quoted
-price with no slippage beyond a flat bps charge, and the models are documented below with the naive
-baselines they are measured against.
+Everything runs on your own computer. There is no paid API and no GPT-style model making decisions.
+It is a learning and portfolio project, **not** a way to get rich: the trades are simulated and the
+README tells you exactly how well (and how badly) the models do.
 
 ![ALDER dashboard](docs/dashboard.png)
 
 ---
 
-## Features
+## What it can do
 
-- **7 views** — Dashboard, Equity Research, Risk, Strategy Signals, Portfolio, Trade Desk,
-  Strategy Lab — in a black, white and gold palette.
-- **Universal ticker search** — every listed common stock on NASDAQ, NYSE and AMEX (**7,457 symbols**,
-  refreshed weekly from the NASDAQ Trader symbol directory) searchable instantly by ticker *or*
-  company name, offline, with no rate limit.
-- **Company identities that always render** — real logos from a CDN with a deterministic monogram
-  fallback painted underneath, so a missing or blocked image never shows a broken-image icon.
-- **Four agents** with typed `{metric, value, status, detail}` contracts, deterministic and auditable.
-- **Three locally trained models** on a five-session horizon — a RandomForest + HistGradientBoosting
-  blend for expected return, HistGradientBoosting for volatility, and a class-weighted
-  HistGradientBoosting classifier for direction. No LLM in the decision path, no model APIs, no
-  shuffling anywhere: every score is produced by expanding-window walk-forward refits.
-- **Strategy Lab** — expanding-window walk-forward backtest with per-change cost modelling; equity
-  curve, Sharpe, Sortino, max drawdown, hit rate, exposure and trade count against buy & hold.
-- **Persistent portfolios with a history** — accounts, cash and holdings live in PostgreSQL or SQLite
-  behind one API, alongside a trade log (timestamp, side, shares, price, notional) and a daily
-  valuation snapshot that drives the portfolio-value chart.
-- **Design prototype included** — `alder-ai.html`, a self-contained 9-screen dashboard mockup.
+- **Seven pages**: Dashboard, Research, Risk, Strategy, Portfolio, Trade Desk, Strategy Lab.
+- **Search 7,457 stocks** by ticker or company name. The list comes from NASDAQ and is saved to disk,
+  so searching is instant and never hits a rate limit.
+- **Three models** trained on your machine. Nothing is pre-baked and no AI service is called.
+- **A backtest** that replays the signal on old data, charges a fee per trade, and compares the
+  result to simply buying and holding the stock.
+- **A real database** for your account, cash, holdings, every trade you make, and one portfolio value
+  per day (which draws the chart on the Portfolio page).
+- **A login page** and a sign-out button, because otherwise anyone could spend your fake money.
 
 ---
 
-## Measured results
+## How the four steps work
 
-Produced by `python model_eval.py`: two years of daily bars, **expanding-window walk-forward**
-(each refit sees past bars only, no shuffling), scored on 38 out-of-sample five-session windows.
-
-| Ticker | Return MAE | Return R² | Price MAE (5 sessions) | Volatility R² | Direction (up/down) | Always-up baseline |
-|---|---:|---:|---:|---:|---:|---:|
-| NVDA | 455 bps | +0.029 | $9.25 | −0.39 | **63.2%** | 39.5% |
-| AAPL | 286 bps | −0.009 | $8.42 | +0.24 | **63.2%** | 52.6% |
-| MSFT | 400 bps | −0.004 | $16.74 | −0.12 | 39.5% | 47.4% |
-
-Mean directional accuracy **55.3%** against an always-up baseline of **46.5%** (+8.8 pp). The honest
-reading: the five-session signal carries a real but modest edge on two of the three names and loses
-to the baseline on MSFT. Return R² is essentially zero, which is normal — you cannot forecast a
-week of equity return from price features with meaningful R² — so the expected return is shrunk
-toward zero (`SHRINK = 0.20`) and clipped to ±1.25σ before it becomes a price target, which is what
-keeps the target inside a plausible weekly band instead of extrapolating a rally.
-
-Every figure is measured against a naive rule of thumb, because on a rising market a coin flip
-already clears 50%: a 52% "accuracy" headline from an earlier version of this project came from a
-single static 80/20 split on a one-day horizon and is not comparable to these numbers.
-
-The Strategy Lab is the economic test. Long when the strategist calls BUY, held five sessions,
-5 bps charged on every position change (2 years):
-
-| Ticker | Strategy | Buy & hold | Excess | Sharpe | Max drawdown | Hit rate | Trades |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| NVDA | **+51.3%** | +43.5% | **+7.8 pp** | 1.32 | −20.5% | 61% | 19 |
-| AAPL | +13.8% | +36.0% | −22.3 pp | 0.65 | −13.4% | 57% | 17 |
-| MSFT | −5.8% | +18.4% | −24.2 pp | −0.17 | −22.7% | 49% | 23 |
-
-The signal beats buy & hold on NVDA with a similar drawdown, and lags badly on AAPL and MSFT where
-the book sat in cash through most of the uptrend (16–21% time in market). The app says this on the
-page rather than hiding it.
-
----
-
-## How the pipeline works
+Think of it as four people passing a note to each other.
 
 ```
-        ┌────────────┐   ┌────────────┐   ┌────────────┐   ┌────────────┐
-ticker →│ Researcher │──▶│    Risk    │──▶│ Strategist │──▶│  Manager   │→ allocation
-        │ RF+HGB ret │   │  HGB vol   │   │  HGB dir   │   │ risk-scaled│
-        └────────────┘   └────────────┘   └────────────┘   └────────────┘
+  pick a        Researcher        Risk           Strategist        Manager
+  stock   →   "what will it  →  "how bumpy   →  "so: BUY,      →  "how much
+              do in 5 days?"    will the ride   HOLD or SELL?"     money?"
+                                 be?"
 ```
 
-| Stage | Implementation | Output |
+| Step | What it actually does | What it hands on |
 |---|---|---|
-| **Researcher** | RF(200, depth 6) blended 50/50 with HGB on 16 engineered features | Expected 5-session return → price target |
-| **Risk Manager** | HGB regressor on the same features | Expected 5-session realised volatility |
-| **Strategist** | Class-weighted HGB classifier, ±1% deadband | BUY / HOLD / SELL, gated by the researcher's return and the risk score |
-| **Portfolio Manager** | `min(0.5, 0.20 − risk × 10)`, 0% on SELL | Capital weight |
+| **Researcher** | Two models (a random forest and a gradient-boosted model) guess the next 5 days of return; their answers are averaged | A 5-day price target |
+| **Risk manager** | A gradient-boosted model guesses how jumpy the next 5 days will be | A volatility number |
+| **Strategist** | A classifier picks BUY / HOLD / SELL, but only says BUY if the Researcher also expects a rise and the Risk manager says it is not too bumpy | The signal |
+| **Manager** | Turns the signal into a percentage of your cash, smaller when risk is high | How much to buy |
+
+The point of the last two rows is that the steps actually depend on each other. A signal is not
+produced in isolation.
 
 ---
 
-## Data sources and why these
+## Does it work? (honest answer)
 
-| Purpose | Source | Notes |
-|---|---|---|
-| Quotes & daily bars | Yahoo Finance via `yfinance` | Works without keys; the raw Yahoo REST endpoints rate-limit (HTTP 429), so requests are cached and retried rather than called per render |
-| Ticker universe | NASDAQ Trader symbol directory (`nasdaqtraded.txt`) | 7,457 tradeable common stocks, cached to disk for a week |
-| Company logos | `assets.parqet.com` symbol logos | 100×100 PNG per ticker, with a monogram fallback |
+The models were tested the only fair way: train on the past, predict the future, then move forward
+one week and do it again. They never see the answer before guessing. 38 guesses per stock.
 
-Every network call in `market_data.py` has a timeout, bounded retries with exponential
-backoff, an in-process TTL cache and, for reference data, a disk cache — so a UI rerun never re-hits
-an API, and a dead source degrades to the other one instead of breaking the page.
+| Stock | How far off the 5-day guess was | Right about up vs down | "Always guess up" would get |
+|---|---:|---:|---:|
+| NVDA | about 4.6% of the price | **63.2%** | 39.5% |
+| AAPL | about 2.9% | **63.2%** | 52.6% |
+| MSFT | about 4.0% | 39.5% | 47.4% |
+
+Average: **55.3% right**, versus **46.5%** for the lazy "always guess up" rule. That is a real but
+small edge. On Microsoft the model is worse than the lazy rule. We print that instead of hiding it.
+
+Two things worth knowing:
+
+- **Guessing the exact return is nearly impossible.** The models explain almost none of the week-to-week
+  movement. That is normal for stock prices. So the prediction is deliberately shrunk toward zero and
+  capped, otherwise a good week makes the app promise a silly +18% target.
+- **A 52% score in an old version of this project was not real.** It came from one lucky train/test
+  split on one-day guesses. The numbers above come from many forward steps, and they are compared
+  against what a dumb rule would score on the same days.
+
+### Would it make money?
+
+The Strategy Lab buys when the signal says BUY, holds for five days, and pays a small fee on every
+trade. Over two years:
+
+| Stock | ALDER | Buy and hold | Sharpe | Worst drop |
+|---|---:|---:|---:|---:|
+| NVDA | **+51.3%** | +43.5% | 1.32 | −20.5% |
+| AAPL | +13.8% | +36.0% | 0.65 | −13.4% |
+| MSFT | −5.8% | +18.4% | −0.17 | −22.7% |
+
+It beat buy-and-hold on NVDA and lost badly on the other two, mostly because it sat in cash during
+uptrends. "Sharpe" is a score for how much return you got per unit of wobble: higher is better, and
+above 1 is good. "Worst drop" is the biggest fall from a peak, which is the number that makes people
+sell at the bottom.
 
 ---
 
-## Quickstart
+## Where the data comes from
 
-Requires Python 3.11+.
+| What | Where | Why |
+|---|---|---|
+| Prices and history | Yahoo Finance (via `yfinance`) | Free, no key needed |
+| List of stocks | NASDAQ's public symbol file | 7,457 stocks, saved for a week |
+| Company logos | parqet image CDN | If an image fails, a letter badge is drawn instead |
+
+Every internet call has a time limit, retries three times with growing waits, and saves its answer
+in memory (quotes 45 seconds, history 15 minutes) and on disk (stock list one week). That way the
+page does not freeze, and if Yahoo is down you see a readable message instead of an error dump.
+
+---
+
+## Run it yourself
+
+You need Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/amoghb14/alder.git
 cd alder
-python3 -m venv venv && source venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Create an account — you start with **$100,000** of simulated cash. A demo account (`amogh` / `abc`) is
-seeded on first run; change or remove it before exposing the app anywhere.
+Open the link it prints. Make an account and you start with **$100,000** of fake cash. There is also
+a demo login (`amogh` / `abc`) created on first run, so delete or change it before putting this on
+the internet.
 
-### Optional: PostgreSQL
+### Saving data across restarts (optional)
 
-SQLite needs no configuration. For PostgreSQL (e.g. Supabase) supply a connection string — no code
-changes:
+By default everything is stored in a small SQLite file next to the code. That is fine locally, but
+free hosting wipes the disk when the app restarts. To keep accounts and trades, use a free
+PostgreSQL database and give the app its address:
 
 ```bash
 export DATABASE_URL="postgresql://user:password@host:5432/dbname"
 ```
 
 ```toml
-# .streamlit/secrets.toml  (git-ignored)
+# .streamlit/secrets.toml  (never commit this file)
 DATABASE_URL = "postgresql://user:password@host:5432/dbname"
 ```
 
+Nothing else changes. The same code talks to both databases.
+
 ---
 
-## Repository map
+## What is in each file
 
-| File | LOC | Role |
+| File | Lines | Job |
 |---|---:|---|
-| `app.py` | 770 | Views, auth, pipeline orchestration, trade execution |
-| `ui.py` | 395 | Design system: theme CSS, navigation, KPI tiles, avatars, charts |
-| `market_data.py` | 356 | Ticker universe, quotes, history, retries, caching, logos |
-| `analytics.py` | 296 | Walk-forward backtest, risk metrics, cached model scoring |
-| `database.py` | 392 | Dual backend (PostgreSQL / SQLite), users, portfolios, trades, valuation history |
-| `models.py` | 460 | `AlderMLModels`: feature engineering, 3 models, walk-forward evaluator |
-| `agents.py` | 67 | The four pipeline agents |
-| `model_eval.py` | 66 | CLI evaluation harness with naive baselines |
-| `crew.py`, `tools.py` | 111 | **Experimental, not wired in** — earlier CrewAI sketch; `crewai` is not a dependency |
-| `alder-ai.html` | 1,257 | Static 9-screen UI prototype |
+| `app.py` | 781 | The pages, the login, and the trade buttons |
+| `models.py` | 463 | Builds the features, trains the three models, scores them |
+| `ui.py` | 421 | Colours, cards, charts, sidebar |
+| `database.py` | 401 | Users, portfolios, trades, and the value history |
+| `market_data.py` | 356 | Downloads prices and the stock list, with retries and caching |
+| `analytics.py` | 240 | The backtest and the portfolio maths |
+| `agents.py` | 67 | Glue that lets each step talk to the next |
+| `model_eval.py` | 58 | Command-line tool that prints the results table above |
+| `alder-ai.html` | 1,257 | An early design mock-up, not used by the app |
+| `crew.py`, `tools.py` | 111 | Leftover experiment, not used by the app |
 
-~2,700 lines of Python in the running application.
-
----
-
-## Design decisions
-
-- **Full-universe local search** rather than a "type a ticker" box: the symbol directory is downloaded
-  once and cached, so name search over 7,400 symbols costs no API call and cannot rate-limit.
-- **Chronological train/test split** (`shuffle=False`) everywhere — random shuffling leaks future
-  prices into training and inflates every score.
-- **Walk-forward backtest** with expanding-window refits and per-change costs, because a model that
-  scores well on a static hold-out can still lose money once it trades.
-- **Monogram fallback under every logo** — CDN logos fail silently; an `<img onerror>` swap means the
-  UI never shows a broken image.
-- **Honest failure states**: a dead symbol, a blocked data source or a database error surfaces as a
-  readable message, not a traceback or a silent `None`.
-- **Absolute database path** (overridable via `ALDER_DB_FILE`) so launching from another directory
-  cannot silently create a second, empty database.
+About 2,900 lines of Python run the app.
 
 ---
 
-## Limitations
+## What it does not do
 
-- Orders simulate at the last quoted price with a flat bps assumption: **no order-book impact, borrow
-  cost or partial fills**, and no live broker integration.
-- The directional edge is modest and inconsistent: 55.3% mean walk-forward accuracy against a 46.5%
-  always-up baseline, but negative on MSFT, and the backtest only beats buy & hold on NVDA of the
-  three sampled names. Treat signals as research output, not tradeable alpha.
-- The volatility model is only better than a naive estimate on some names (R² +0.23 on AAPL,
-  negative on NVDA and MSFT), so the risk score is a guide rather than a calibrated forecast.
-- Models are refit per pipeline run (no persistence layer for models yet), so each analysis costs a
-  few seconds and depends on Yahoo Finance availability.
-- Authentication is demo-grade: SHA-256 without per-user salt, no session expiry, no rate limiting.
-- No automated test suite yet; flows were verified manually with Streamlit's `AppTest` harness.
+- **It does not trade real money.** Orders fill at the last price. No broker, no order book, no
+  partial fills, no borrowing costs.
+- **The edge is small and uneven.** 55.3% against 46.5% is not a money machine, and one of the three
+  stocks came out worse than the lazy rule.
+- **The risk number is rough.** It beats a simple estimate on Apple but not on NVDA or Microsoft.
+- **Models retrain every time you press the button**, so answers take a few seconds and need an
+  internet connection to Yahoo.
+- **The login is a demo.** Passwords are hashed with SHA-256 and no salt, and sessions never expire.
+  Do not reuse a real password.
+- **There are no automated tests yet.** I checked the pages with Streamlit's `AppTest` tool and by
+  clicking through the app.
 
 ---
 
-## Roadmap
+## What I would do next
 
-- Persist trained models per (ticker, day) and add a proper walk-forward parameter sweep.
-- Replace the hashing scheme with a salted KDF and add tests around persistence and the data layer.
+- Save trained models to disk so pages load faster.
+- Add tests for the database code and the model scoring.
+- Replace the password hashing with a proper salted scheme.
