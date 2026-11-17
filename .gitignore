@@ -4,3 +4,6 @@ __pycache__/
 
 # Streamlit secrets hold real credentials (e.g. DATABASE_URL) - never commit them
 .streamlit/secrets.toml
+
+# Local market data / job-board scan cache
+.cache/
